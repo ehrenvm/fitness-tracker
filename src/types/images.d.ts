@@ -1,0 +1,1 @@
+declare module '*.png' {\n  const value: string;\n  export default value;\n}\n\ndeclare module '*.jpg' {\n  const value: string;\n  export default value;\n}\n\ndeclare module '*.jpeg' {\n  const value: string;\n  export default value;\n}
