@@ -1,109 +1,146 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Button,
-  Box,
-  CssBaseline,
-  ThemeProvider,
-  createTheme,
-} from '@mui/material';
-import UserRegistration from './components/UserRegistration';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Container, AppBar, Toolbar, Typography, Button, Box, ThemeProvider } from '@mui/material';
 import ActivityTracker from './components/ActivityTracker';
-import AdminPanel from './components/AdminPanel';
+import UserRegistration from './components/UserRegistration';
 import UserList from './components/UserList';
-import { AppBackground, ContentContainer } from './styles/background';
+import AdminPanel from './components/AdminPanel';
+import Login from './components/Login';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { BackgroundContainer } from './styles/background';
+import { theme } from './theme';
 
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#056c01', // NOCO Performance green
-    },
-    secondary: {
-      main: '#f50057',
-    },
-  },
-});
+const NavigationBar: React.FC = () => {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Failed to log out:', error);
+    }
+  };
 
-const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const handleAdminClick = () => {
+    navigate('/admin');
+  };
 
-  const handleUserSelect = (userName: string) => {
-    setCurrentUser(userName);
+  const handleHomeClick = () => {
+    navigate('/');
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
-        <AppBackground>
-          <ContentContainer>
-            <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-              <AppBar position="static">
-                <Toolbar>
-                  <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                    Fitness Tracker
-                  </Typography>
-                  <Button color="inherit" component={Link} to="/">
-                    Home
-                  </Button>
-                  {currentUser && (
-                    <Button color="inherit" component={Link} to="/tracker">
-                      Track Activity
-                    </Button>
-                  )}
-                  <Button color="inherit" component={Link} to="/admin">
-                    Admin
-                  </Button>
-                </Toolbar>
-              </AppBar>
-
-              <Box sx={{ 
-                display: 'flex', 
-                flexGrow: 1,
-                mt: 2,
-                gap: 2,
-                px: 2,
-                height: 'calc(100vh - 64px - 16px)'
-              }}>
-                <Box sx={{ 
-                  width: 300, 
-                  flexShrink: 0,
-                  display: { xs: 'none', md: 'block' }
-                }}>
-                  <UserList onUserSelect={handleUserSelect} />
-                </Box>
-
-                <Box sx={{ flexGrow: 1 }}>
-                  <Routes>
-                    <Route 
-                      path="/" 
-                      element={
-                        <UserRegistration 
-                          onUserSelect={handleUserSelect}
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/tracker" 
-                      element={
-                        currentUser ? (
-                          <ActivityTracker userName={currentUser} />
-                        ) : (
-                          <Typography>Please register or select a user first</Typography>
-                        )
-                      } 
-                    />
-                    <Route path="/admin" element={<AdminPanel />} />
-                  </Routes>
-                </Box>
-              </Box>
+    <AppBar position="static">
+      <Toolbar>
+        <Typography variant="h6" component="div" sx={{ mr: 12, minWidth: '150px' }}>
+          Fitness Tracker
+        </Typography>
+        {currentUser && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+            <Button 
+              color="inherit" 
+              onClick={handleHomeClick}
+              sx={{ textTransform: 'none' }}
+            >
+              Home
+            </Button>
+            <Button 
+              color="inherit" 
+              onClick={handleAdminClick}
+              sx={{ textTransform: 'none' }}
+            >
+              Admin
+            </Button>
+            <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body1">
+                {currentUser.email}
+              </Typography>
+              <Button 
+                color="inherit" 
+                onClick={handleLogout}
+                sx={{ textTransform: 'none' }}
+              >
+                Logout
+              </Button>
             </Box>
-          </ContentContainer>
-        </AppBackground>
-      </Router>
+          </Box>
+        )}
+      </Toolbar>
+    </AppBar>
+  );
+};
+
+const App: React.FC = () => {
+  const [selectedUser, setSelectedUser] = useState<string>('');
+  const [showActivityTracker, setShowActivityTracker] = useState(false);
+
+  return (
+    <ThemeProvider theme={theme}>
+      <AuthProvider>
+        <Router>
+          <BackgroundContainer>
+            <NavigationBar />
+            <Container>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute>
+                      <Box sx={{ display: 'flex', mt: 3 }}>
+                        <Box sx={{ width: '250px', mr: 3 }}>
+                          {selectedUser && !showActivityTracker && (
+                            <Button
+                              variant="contained"
+                              fullWidth
+                              sx={{ mb: 3 }}
+                              onClick={() => setShowActivityTracker(true)}
+                            >
+                              Open Activity Tracker
+                            </Button>
+                          )}
+                          <UserList onUserSelect={setSelectedUser} />
+                        </Box>
+                        <Box sx={{ flexGrow: 1 }}>
+                          {!showActivityTracker ? (
+                            <UserRegistration onUserSelect={setSelectedUser} />
+                          ) : (
+                            selectedUser && (
+                              <>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                  <Typography variant="h5">Activity Tracker</Typography>
+                                  <Button
+                                    variant="outlined"
+                                    onClick={() => setShowActivityTracker(false)}
+                                  >
+                                    Close Activity Tracker
+                                  </Button>
+                                </Box>
+                                <ActivityTracker selectedUser={selectedUser} />
+                              </>
+                            )
+                          )}
+                        </Box>
+                      </Box>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <AdminPanel />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </Container>
+          </BackgroundContainer>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 };
