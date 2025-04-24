@@ -6,9 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-firebase-debug.log*
 
-# Dependencies
 node_modules
 dist
 dist-ssr
@@ -32,11 +30,9 @@ dist-ssr
 .env.test.local
 .env.production.local
 
-# Build
-/build
-/dist
-/dist-ssr
-
 # Firebase
-.firebase/
-*.log
+.firebase
+firebase-debug.log*
+
+# Build
+build
