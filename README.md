@@ -1,47 +1,23 @@
-# Fitness Tracker
+# NOCO Performance Fitness Tracker
 
 A web application for tracking fitness activities and progress, built with React, TypeScript, and Firebase.
 
 ## Features
 
-- User registration and authentication
-- Track multiple types of activities:
-  - Push-ups
-  - Pull-ups
-  - Squats
-  - Running (km)
-  - Plank (seconds)
-  - Deadlift (lbs)
-  - Bench Press (lbs)
-- Activity history with sorting and filtering
+- User authentication (signup, login, logout)
+- Activity tracking with multiple activity types
 - Progress visualization with interactive graphs
-- Admin panel for managing activities
-- Activity leaderboard
-- Responsive design
+- Data normalization for comparing different activities
+- Admin panel for managing activities and user data
+- Responsive design for mobile and desktop
 
-## Tech Stack
+## Setup
 
-- React 18
-- TypeScript
-- Material-UI (MUI)
-- Firebase (Firestore)
-- Vite
-- Chart.js
-- Styled Components
-
-## Getting Started
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ehrenvm/fitness-tracker.git
-   cd fitness-tracker
-   ```
-
+1. Clone the repository
 2. Install dependencies:
    ```bash
    npm install
    ```
-
 3. Create a `.env` file in the root directory with your Firebase configuration:
    ```
    REACT_APP_FIREBASE_API_KEY=your_api_key
@@ -53,38 +29,31 @@ A web application for tracking fitness activities and progress, built with React
    REACT_APP_ADMIN_PASSWORD=your_admin_password
    ```
 
-4. Start the development server:
+## Development
+
+Start the development server:
+```bash
+npm start
+```
+
+## Deployment
+
+1. Build the project:
    ```bash
-   npm run dev
+   npm run build
+   ```
+2. Deploy to Firebase:
+   ```bash
+   firebase deploy
    ```
 
-## Project Structure
+## Firebase Configuration
 
-- `/src` - Source code
-  - `/components` - React components
-  - `/styles` - Styled components and theme
-  - `/assets` - Images and static assets
-  - `/types` - TypeScript type definitions
-  - `firebase.ts` - Firebase configuration
-  - `App.tsx` - Main application component
-  - `main.tsx` - Application entry point
-
-## Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript type checking
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Set up Firebase Authentication with email/password
+2. Configure Firestore security rules
+3. Deploy Firebase Functions for admin functionality
+4. Set up Firebase Hosting
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details
