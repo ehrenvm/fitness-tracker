@@ -17,9 +17,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TableSortLabel
+  TableSortLabel,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  IconButton
 } from '@mui/material';
-import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query } from 'firebase/firestore';
+import DeleteIcon from '@mui/icons-material/Delete';
+import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
 
@@ -31,11 +38,17 @@ interface Result {
   userName: string;
 }
 
+interface Activity {
+  id: string;
+  name: string;
+}
+
 type SortField = 'userName' | 'activity' | 'date' | 'value';
 type SortDirection = 'asc' | 'desc';
 
 const AdminPanel: React.FC = () => {
   const [results, setResults] = useState<Result[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [editDialog, setEditDialog] = useState(false);
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -44,6 +57,8 @@ const AdminPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [newActivityName, setNewActivityName] = useState('');
+  const [addActivityError, setAddActivityError] = useState<string | null>(null);
 
   const loadAllResults = async () => {
     try {
@@ -60,6 +75,21 @@ const AdminPanel: React.FC = () => {
     } catch (err) {
       console.error('Error loading results:', err);
       setError('Failed to load results. Please try again.');
+    }
+  };
+
+  const loadActivities = async () => {
+    try {
+      const activitiesRef = collection(db, 'config/activities/list');
+      const querySnapshot = await getDocs(activitiesRef);
+      const fetchedActivities = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Activity[];
+      setActivities(fetchedActivities);
+    } catch (err) {
+      console.error('Error loading activities:', err);
+      setError('Failed to load activities. Please try again.');
     }
   };
 
@@ -99,6 +129,7 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) {
       loadAllResults();
+      loadActivities();
     }
   }, [isAuthenticated]);
 
@@ -143,6 +174,52 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleAddActivity = async () => {
+    if (!newActivityName.trim()) {
+      setAddActivityError('Activity name cannot be empty');
+      return;
+    }
+
+    // Check if activity already exists
+    const activityExists = activities.some(
+      activity => activity.name.toLowerCase() === newActivityName.toLowerCase()
+    );
+
+    if (activityExists) {
+      setAddActivityError('Activity already exists');
+      return;
+    }
+
+    try {
+      const activityId = newActivityName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      const activityRef = doc(db, 'config/activities/list', activityId);
+      await setDoc(activityRef, {
+        name: newActivityName
+      });
+      
+      await loadActivities();
+      setNewActivityName('');
+      setAddActivityError(null);
+    } catch (err) {
+      console.error('Error adding activity:', err);
+      setAddActivityError('Failed to add activity. Please try again.');
+    }
+  };
+
+  const handleDeleteActivity = async (activityId: string) => {
+    if (window.confirm('Are you sure you want to delete this activity? This will not delete existing results.')) {
+      try {
+        const activityRef = doc(db, 'config/activities/list', activityId);
+        await deleteDoc(activityRef);
+        await loadActivities();
+        setError(null);
+      } catch (err) {
+        console.error('Error deleting activity:', err);
+        setError('Failed to delete activity. Please try again.');
+      }
+    }
+  };
+
   const handleLogin = () => {
     const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD;
     if (password === adminPassword) {
@@ -157,6 +234,7 @@ const AdminPanel: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setResults([]);
+    setActivities([]);
     setError(null);
   };
 
@@ -214,6 +292,51 @@ const AdminPanel: React.FC = () => {
             {error}
           </Alert>
         )}
+
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Manage Activities
+          </Typography>
+          <Paper sx={{ p: 2 }}>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                label="New Activity Name"
+                placeholder="e.g., Running (km) or Deadlift (lbs)"
+                value={newActivityName}
+                onChange={(e) => setNewActivityName(e.target.value)}
+                fullWidth
+                margin="normal"
+                error={!!addActivityError}
+                helperText={addActivityError}
+              />
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleAddActivity}
+                sx={{ mt: 1 }}
+              >
+                Add Activity
+              </Button>
+            </Box>
+            <Divider sx={{ my: 2 }} />
+            <List>
+              {activities.map((activity) => (
+                <ListItem key={activity.id}>
+                  <ListItemText primary={activity.name} />
+                  <ListItemSecondaryAction>
+                    <IconButton
+                      edge="end"
+                      aria-label="delete"
+                      onClick={() => handleDeleteActivity(activity.id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        </Box>
 
         <ActivityLeaderboard />
 
