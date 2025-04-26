@@ -19,7 +19,8 @@ import {
   Toolbar,
   DialogContent,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Stack
 } from '@mui/material';
 import { Fullscreen, Close } from '@mui/icons-material';
 
@@ -61,6 +62,7 @@ const colorPalette = [
 const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActivities }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isNormalized, setIsNormalized] = useState(false);
+  const [isCurved, setIsCurved] = useState(true);
 
   // Process data for the graph
   const { chartData, activityRanges } = useMemo(() => {
@@ -131,6 +133,10 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     setIsNormalized(!isNormalized);
   };
 
+  const handleCurveToggle = () => {
+    setIsCurved(!isCurved);
+  };
+
   const customTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -178,7 +184,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
       borderRadius: 1,
       p: 2 
     }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
         <FormControlLabel
           control={
             <Switch
@@ -189,7 +195,17 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           }
           label="Normalize Values (0-100%)"
         />
-      </Box>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={isCurved}
+              onChange={handleCurveToggle}
+              color="primary"
+            />
+          }
+          label="Smooth Lines"
+        />
+      </Stack>
       <ResponsiveContainer width="100%" height="90%">
         <LineChart
           data={chartData}
@@ -213,7 +229,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           {selectedActivities.map((activity, index) => (
             <Line
               key={activity}
-              type="monotone"
+              type={isCurved ? "monotone" : "linear"}
               dataKey={isNormalized ? `${activity}_normalized` : `${activity}_original`}
               name={activity}
               stroke={colorPalette[index % colorPalette.length]}
