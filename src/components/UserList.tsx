@@ -9,52 +9,83 @@ import {
   Paper,
   TextField,
   InputAdornment,
-  CircularProgress
+  CircularProgress,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Alert,
+  IconButton
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useNavigate } from 'react-router-dom';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import { collection, getDocs, query, orderBy, where, addDoc, deleteDoc } from 'firebase/firestore';
+import { db, logAnalyticsEvent } from '../firebase';
+import { useUser } from '../contexts/UserContext';
 
 interface UserListProps {
+  onAdminClick: () => void;
   onUserSelect: (userName: string) => void;
+  selectedUser: string | null;
+  refreshTrigger?: number;
 }
 
-const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+interface UserDoc {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUser, refreshTrigger }) => {
+  const { userName, setUserName } = useUser();
+  const [users, setUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
   const loadUsers = async () => {
     try {
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('name'));
-      const querySnapshot = await getDocs(q);
+      const snapshot = await getDocs(usersRef);
       
-      // Create a Map to store unique users, with name as the key
-      const uniqueUsers = new Map();
+      // Create a map to store users by name with their documents
+      const userMap = new Map<string, UserDoc>();
       
-      querySnapshot.docs.forEach(doc => {
+      snapshot.docs.forEach(doc => {
         const userData = doc.data();
-        // Only add this user if we haven't seen this name before
-        if (!uniqueUsers.has(userData.name)) {
-          uniqueUsers.set(userData.name, {
-            id: doc.id,
-            name: userData.name
-          });
+        const user: UserDoc = {
+          id: doc.id,
+          name: userData.name,
+          createdAt: userData.createdAt
+        };
+        
+        // If we find a duplicate, keep the older entry
+        const existingUser = userMap.get(userData.name);
+        if (!existingUser || new Date(existingUser.createdAt) > new Date(user.createdAt)) {
+          userMap.set(userData.name, user);
         }
       });
 
-      // Convert Map values to array and sort by name
-      const usersList = Array.from(uniqueUsers.values())
-        .sort((a, b) => a.name.localeCompare(b.name));
+      // Clean up duplicates
+      const deletionPromises: Promise<void>[] = [];
+      snapshot.docs.forEach(doc => {
+        const userData = doc.data();
+        const keepingUser = userMap.get(userData.name);
+        if (keepingUser && keepingUser.id !== doc.id) {
+          deletionPromises.push(deleteDoc(doc.ref));
+        }
+      });
 
-      setUsers(usersList);
+      // Wait for all deletions to complete
+      if (deletionPromises.length > 0) {
+        await Promise.all(deletionPromises);
+        console.log(`Cleaned up ${deletionPromises.length} duplicate users`);
+      }
+
+      // Update state with unique users
+      setUsers(Array.from(userMap.keys()).sort());
       setLoading(false);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -62,37 +93,83 @@ const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
     }
   };
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    loadUsers();
+  }, [refreshTrigger]);
 
-  const handleUserClick = (userName: string) => {
-    onUserSelect(userName);
-    navigate('/tracker');
+  const handleRegister = async () => {
+    if (!searchTerm.trim()) {
+      setRegistrationError('Please enter a name');
+      return;
+    }
+    
+    try {
+      const normalizedName = searchTerm.trim();
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('name', '==', normalizedName));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        setRegistrationError('This name is already registered');
+        return;
+      }
+
+      const newUser = {
+        name: normalizedName,
+        createdAt: new Date().toISOString()
+      };
+      
+      const userDoc = await addDoc(usersRef, newUser);
+      
+      logAnalyticsEvent('user_registration', {
+        user_id: userDoc.id,
+        user_name: newUser.name,
+        registration_date: newUser.createdAt
+      });
+
+      setShowRegisterDialog(false);
+      setRegistrationError(null);
+      setUserName(newUser.name);
+      setSearchTerm('');
+      await loadUsers();
+    } catch (error) {
+      console.error('Error registering user:', error);
+      setRegistrationError('An error occurred while registering. Please try again.');
+    }
   };
+
+  const filteredUsers = users.filter(user =>
+    user.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <Paper 
       elevation={3} 
       sx={{ 
-        width: '100%',
-        maxWidth: 300,
         height: '100%',
-        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column'
       }}
     >
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6" gutterBottom>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6">
           Users
         </Typography>
+        <IconButton onClick={onAdminClick} color="primary" size="small">
+          <AdminPanelSettingsIcon />
+        </IconButton>
+      </Box>
+      
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <TextField
           fullWidth
           size="small"
-          placeholder="Search users..."
+          placeholder="Search or enter new name..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setRegistrationError(null);
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -110,22 +187,73 @@ const UserList: React.FC<UserListProps> = ({ onUserSelect }) => {
       ) : (
         <List sx={{ overflow: 'auto', flexGrow: 1 }}>
           {filteredUsers.map((user) => (
-            <ListItem key={user.id} disablePadding>
-              <ListItemButton onClick={() => handleUserClick(user.name)}>
-                <ListItemText primary={user.name} />
+            <ListItem key={user} disablePadding>
+              <ListItemButton 
+                selected={userName === user}
+                onClick={() => {
+                  setUserName(user);
+                  onUserSelect(user);
+                }}
+              >
+                <ListItemText primary={user} />
               </ListItemButton>
             </ListItem>
           ))}
-          {filteredUsers.length === 0 && (
+          {filteredUsers.length === 0 && searchTerm.trim() && (
+            <Box sx={{ p: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                No users found with that name
+              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={() => setShowRegisterDialog(true)}
+              >
+                Register "{searchTerm.trim()}"
+              </Button>
+            </Box>
+          )}
+          {filteredUsers.length === 0 && !searchTerm.trim() && (
             <ListItem>
               <ListItemText 
-                primary="No users found" 
-                secondary={searchTerm ? "Try a different search term" : "Register a new user to get started"}
+                primary="Start typing to search or register" 
+                secondary="Enter a name to search for existing users or register as new"
               />
             </ListItem>
           )}
         </List>
       )}
+
+      <Dialog 
+        open={showRegisterDialog} 
+        onClose={() => {
+          setShowRegisterDialog(false);
+          setRegistrationError(null);
+        }}
+      >
+        <DialogTitle>Register New User</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Would you like to register "{searchTerm.trim()}" as a new user?
+          </Typography>
+          {registrationError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {registrationError}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setShowRegisterDialog(false);
+            setRegistrationError(null);
+          }}>
+            Cancel
+          </Button>
+          <Button onClick={handleRegister} variant="contained">
+            Register
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };
