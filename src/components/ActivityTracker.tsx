@@ -1,168 +1,110 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Paper,
-  Typography,
   TextField,
   Button,
+  Box,
+  Typography,
+  Container,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
+  Grid,
+  SelectChangeEvent,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  Alert,
+  ToggleButton,
+  ToggleButtonGroup,
   Chip,
-  OutlinedInput,
-  SelectChangeEvent
+  OutlinedInput
 } from '@mui/material';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useAuth } from '../contexts/AuthContext';
+import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
+import { db, logAnalyticsEvent, auth } from '../firebase';
+import { ANALYTICS_EVENTS } from '../constants/analytics';
 import ActivityGraph from './ActivityGraph';
-import ActivityLeaderboard from './ActivityLeaderboard';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import CompoundValueInput from './CompoundValueInput';
 
-interface ActivityResult {
-  id: string;
-  userName: string;
-  activity: string;
-  value: number;
-  date: string;
-}
+// ... rest of the imports and interfaces ...
 
-const ActivityTracker: React.FC = () => {
-  const [activities, setActivities] = useState<string[]>([]);
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
-  const [value, setValue] = useState('');
-  const [results, setResults] = useState<ActivityResult[]>([]);
-  const [error, setError] = useState('');
-  const { currentUser } = useAuth();
+const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
+  // ... existing state declarations ...
 
-  useEffect(() => {
-    const fetchActivities = async () => {
-      try {
-        const activitiesRef = collection(db, 'config/activities/list');
-        const snapshot = await getDocs(activitiesRef);
-        const activityList = snapshot.docs.map(doc => doc.data().name);
-        setActivities(activityList);
-      } catch (error) {
-        console.error('Error fetching activities:', error);
-        setError('Failed to load activities');
-      }
-    };
-
-    fetchActivities();
-  }, []);
-
-  useEffect(() => {
-    const fetchResults = async () => {
-      if (!currentUser) return;
-
-      try {
-        const resultsRef = collection(db, 'results');
-        const q = query(resultsRef, where('userName', '==', currentUser.email));
-        const snapshot = await getDocs(q);
-        const fetchedResults = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as ActivityResult[];
-        setResults(fetchedResults);
-      } catch (error) {
-        console.error('Error fetching results:', error);
-        setError('Failed to load results');
-      }
-    };
-
-    fetchResults();
-  }, [currentUser]);
-
-  const handleActivityChange = (event: SelectChangeEvent<string[]>) => {
-    const value = event.target.value;
-    setSelectedActivities(typeof value === 'string' ? value.split(',') : value);
-  };
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!currentUser || !selectedActivities.length || !value) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedActivity) return;
 
     try {
-      const resultsRef = collection(db, 'results');
-      const newResult = {
-        userName: currentUser.email,
-        activity: selectedActivities[0], // Use first selected activity for adding new result
-        value: parseFloat(value),
-        date: new Date().toISOString()
+      const isCompound = selectedActivity.match(/\((.*?)\)/) !== null;
+      let finalValue: number;
+
+      if (isCompound) {
+        if (selectedActivity.includes('ft/in')) {
+          finalValue = (parseFloat(value.value1) * 12) + parseFloat(value.value2 || '0');
+        } else if (selectedActivity.includes('min/sec')) {
+          finalValue = (parseFloat(value.value1) * 60) + parseFloat(value.value2 || '0');
+        } else {
+          finalValue = parseFloat(value.value1 + '.' + (value.value2 || '0'));
+        }
+      } else {
+        finalValue = parseFloat(value.value1);
+      }
+
+      if (isNaN(finalValue)) {
+        throw new Error('Invalid value entered');
+      }
+
+      const result = {
+        activity: selectedActivity,
+        value: finalValue,
+        originalValue: isCompound ? value : undefined,
+        date: new Date().toISOString(),
+        userId: user.uid,
+        userName: userName
       };
 
-      await addDoc(resultsRef, newResult);
-      setResults([...results, { id: 'temp', ...newResult }]);
-      setValue('');
-      setError('');
+      const docRef = await addDoc(collection(db, 'results'), result);
+      
+      // Log analytics for new activity data
+      logAnalyticsEvent(ANALYTICS_EVENTS.ACTIVITY_DATA_ADDED, {
+        userId: user.uid,
+        userName: userName,
+        activity: selectedActivity,
+        value: finalValue,
+        isCompound,
+        resultId: docRef.id
+      });
+
+      // Check for performance milestones
+      const userResults = results.filter(r => r.activity === selectedActivity);
+      if (userResults.length > 0) {
+        const personalBest = Math.max(...userResults.map(r => r.value));
+        if (finalValue > personalBest) {
+          logAnalyticsEvent(ANALYTICS_EVENTS.PERFORMANCE_MILESTONE, {
+            userId: user.uid,
+            userName: userName,
+            activity: selectedActivity,
+            value: finalValue,
+            type: 'personal_best',
+            previousBest: personalBest
+          });
+        }
+      }
+
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+      setValue({ value1: '', value2: '' });
+      loadResults();
     } catch (error) {
       console.error('Error adding result:', error);
-      setError('Failed to add result');
+      setError('Failed to add result. Please try again.');
+      setTimeout(() => setError(null), 3000);
     }
   };
 
-  return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Paper elevation={3} sx={{ p: 3, mb: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Track Your Activity
-        </Typography>
-        <form onSubmit={handleSubmit}>
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel id="activity-select-label">Select Activities</InputLabel>
-            <Select
-              labelId="activity-select-label"
-              multiple
-              value={selectedActivities}
-              onChange={handleActivityChange}
-              input={<OutlinedInput label="Select Activities" />}
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {selected.map((value) => (
-                    <Chip key={value} label={value} />
-                  ))}
-                </Box>
-              )}
-            >
-              {activities.map((activity) => (
-                <MenuItem key={activity} value={activity}>
-                  {activity}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField
-            fullWidth
-            label="Value"
-            type="number"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={!selectedActivities.length || !value}
-          >
-            Add Result
-          </Button>
-          {error && (
-            <Typography color="error" sx={{ mt: 2 }}>
-              {error}
-            </Typography>
-          )}
-        </form>
-      </Paper>
-
-      <ActivityGraph
-        results={results}
-        selectedActivities={selectedActivities}
-      />
-
-      <ActivityLeaderboard />
-    </Box>
-  );
+  // ... rest of the component code ...
 };
-
-export default ActivityTracker;

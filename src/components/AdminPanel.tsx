@@ -1,156 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Container,
-  Typography,
-  Box,
-  Button,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Paper,
-  Alert,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton
-} from '@mui/material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import ActivityLeaderboard from './ActivityLeaderboard';
+// ... existing imports ...
+import { db, logAnalyticsEvent } from '../firebase';
+import { ANALYTICS_EVENTS } from '../constants/analytics';
 
-interface Result {
-  id: string;
-  activity: string;
-  value: number;
-  date: string;
-  userName: string;
-}
+// ... existing interfaces ...
 
-interface Activity {
-  id: string;
-  name: string;
-}
-
-type SortField = 'userName' | 'activity' | 'date' | 'value';
-type SortDirection = 'asc' | 'desc';
-
-const AdminPanel: React.FC = () => {
-  const [results, setResults] = useState<Result[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [editDialog, setEditDialog] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<Result | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [newActivityName, setNewActivityName] = useState('');
-  const [addActivityError, setAddActivityError] = useState<string | null>(null);
-
-  const loadAllResults = async () => {
-    try {
-      const resultsRef = collection(db, 'results');
-      const q = query(resultsRef, orderBy('date', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const fetchedResults = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Result[];
-      console.log('Fetched results:', fetchedResults);
-      setResults(fetchedResults);
-      setError(null);
-    } catch (err) {
-      console.error('Error loading results:', err);
-      setError('Failed to load results. Please try again.');
-    }
-  };
-
-  const loadActivities = async () => {
-    try {
-      const activitiesRef = collection(db, 'config/activities/list');
-      const querySnapshot = await getDocs(activitiesRef);
-      const fetchedActivities = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Activity[];
-      setActivities(fetchedActivities);
-    } catch (err) {
-      console.error('Error loading activities:', err);
-      setError('Failed to load activities. Please try again.');
-    }
-  };
-
-  // Sort results based on current sort field and direction
-  const sortedResults = [...results].sort((a, b) => {
-    let comparison = 0;
-    
-    switch (sortField) {
-      case 'userName':
-        comparison = a.userName.localeCompare(b.userName);
-        break;
-      case 'activity':
-        comparison = a.activity.localeCompare(b.activity);
-        break;
-      case 'date':
-        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-        break;
-      case 'value':
-        comparison = a.value - b.value;
-        break;
-      default:
-        comparison = 0;
-    }
-
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
-
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadAllResults();
-      loadActivities();
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    console.log('Results updated:', results);
-  }, [results]);
-
-  const handleEdit = (result: Result) => {
-    setSelectedResult(result);
-    setEditValue(result.value.toString());
-    setEditDialog(true);
-  };
+const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
+  // ... existing state declarations ...
 
   const handleSaveEdit = async () => {
     if (!selectedResult) return;
 
     try {
       const resultRef = doc(db, 'results', selectedResult.id);
+      const oldValue = selectedResult.value;
       await updateDoc(resultRef, {
         value: Number(editValue)
       });
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'edit_result',
+        resultId: selectedResult.id,
+        activity: selectedResult.activity,
+        userName: selectedResult.userName,
+        oldValue,
+        newValue: Number(editValue)
+      });
+
       setEditDialog(false);
       await loadAllResults();
       setError(null);
@@ -160,288 +36,100 @@ const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this result?')) {
-      try {
-        const resultRef = doc(db, 'results', id);
-        await deleteDoc(resultRef);
-        await loadAllResults();
-        setError(null);
-      } catch (err) {
-        console.error('Error deleting result:', err);
-        setError('Failed to delete result. Please try again.');
-      }
+  const handleDeleteResult = async (resultId: string) => {
+    try {
+      const resultRef = doc(db, 'results', resultId);
+      const resultDoc = await getDoc(resultRef);
+      const resultData = resultDoc.data();
+      
+      await deleteDoc(resultRef);
+      
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'delete_result',
+        resultId,
+        activity: resultData?.activity,
+        userName: resultData?.userName,
+        value: resultData?.value
+      });
+      
+      await loadAllResults();
+    } catch (error) {
+      console.error('Error deleting result:', error);
+      setError('Failed to delete result. Please try again.');
     }
   };
 
   const handleAddActivity = async () => {
-    if (!newActivityName.trim()) {
-      setAddActivityError('Activity name cannot be empty');
-      return;
-    }
-
-    // Check if activity already exists
-    const activityExists = activities.some(
-      activity => activity.name.toLowerCase() === newActivityName.toLowerCase()
-    );
-
-    if (activityExists) {
-      setAddActivityError('Activity already exists');
-      return;
-    }
+    if (!newActivity.trim()) return;
 
     try {
-      const activityId = newActivityName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      const activityRef = doc(db, 'config/activities/list', activityId);
-      await setDoc(activityRef, {
-        name: newActivityName
+      const activitiesRef = doc(db, 'config', 'activities');
+      const newActivities = [...activities, newActivity.trim()];
+      await setDoc(activitiesRef, { list: newActivities });
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'add_activity',
+        activityName: newActivity.trim(),
+        totalActivities: newActivities.length
       });
+
+      setActivities(newActivities);
+      setNewActivity('');
+      setAddActivityDialog(false);
+    } catch (error) {
+      console.error('Error adding activity:', error);
+      setError('Failed to add activity. Please try again.');
+    }
+  };
+
+  const handleDeleteActivity = async (activity: string) => {
+    try {
+      const activitiesRef = doc(db, 'config', 'activities');
+      const newActivities = activities.filter(a => a !== activity);
+      await setDoc(activitiesRef, { list: newActivities });
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'delete_activity',
+        activityName: activity,
+        totalActivities: newActivities.length
+      });
+
+      setActivities(newActivities);
+      setRemoveActivityDialog(false);
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      setError('Failed to delete activity. Please try again.');
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    try {
+      // Delete user document
+      await deleteDoc(doc(db, 'users', user.id));
       
-      await loadActivities();
-      setNewActivityName('');
-      setAddActivityError(null);
-    } catch (err) {
-      console.error('Error adding activity:', err);
-      setAddActivityError('Failed to add activity. Please try again.');
+      // Delete all user's results
+      const resultsRef = collection(db, 'results');
+      const q = query(resultsRef, where('userName', '==', user.name));
+      const querySnapshot = await getDocs(q);
+      
+      const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'delete_user',
+        userId: user.id,
+        userName: user.name,
+        resultsDeleted: querySnapshot.size
+      });
+
+      setUsers(prevUsers => prevUsers.filter(u => u.id !== user.id));
+      setConfirmDeleteUser(null);
+      if (onUserDeleted) onUserDeleted();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setError('Failed to delete user. Please try again.');
     }
   };
 
-  const handleDeleteActivity = async (activityId: string) => {
-    if (window.confirm('Are you sure you want to delete this activity? This will not delete existing results.')) {
-      try {
-        const activityRef = doc(db, 'config/activities/list', activityId);
-        await deleteDoc(activityRef);
-        await loadActivities();
-        setError(null);
-      } catch (err) {
-        console.error('Error deleting activity:', err);
-        setError('Failed to delete activity. Please try again.');
-      }
-    }
-  };
-
-  const handleLogin = () => {
-    const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD;
-    if (password === adminPassword) {
-      setIsAuthenticated(true);
-      setError(null);
-    } else {
-      setError('Invalid password');
-    }
-    setPassword('');
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setResults([]);
-    setActivities([]);
-    setError(null);
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <Container maxWidth="sm">
-        <Box sx={{ mt: 4, p: 3, bgcolor: 'background.paper', borderRadius: 1 }}>
-          <Typography variant="h5" component="h2" gutterBottom>
-            Admin Login
-          </Typography>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
-            <TextField
-              fullWidth
-              type="password"
-              label="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-              margin="normal"
-            />
-            <Button
-              fullWidth
-              variant="contained"
-              color="primary"
-              onClick={handleLogin}
-              sx={{ mt: 2 }}
-            >
-              Login
-            </Button>
-            {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {error}
-              </Alert>
-            )}
-          </Box>
-        </Box>
-      </Container>
-    );
-  }
-
-  return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            Admin Panel
-          </Typography>
-          <Button variant="outlined" color="primary" onClick={handleLogout}>
-            Logout
-          </Button>
-        </Box>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            Manage Activities
-          </Typography>
-          <Paper sx={{ p: 2 }}>
-            <Box sx={{ mb: 2 }}>
-              <TextField
-                label="New Activity Name"
-                placeholder="e.g., Running (km) or Deadlift (lbs)"
-                value={newActivityName}
-                onChange={(e) => setNewActivityName(e.target.value)}
-                fullWidth
-                margin="normal"
-                error={!!addActivityError}
-                helperText={addActivityError}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleAddActivity}
-                sx={{ mt: 1 }}
-              >
-                Add Activity
-              </Button>
-            </Box>
-            <Divider sx={{ my: 2 }} />
-            <List>
-              {activities.map((activity) => (
-                <ListItem key={activity.id}>
-                  <ListItemText primary={activity.name} />
-                  <ListItemSecondaryAction>
-                    <IconButton
-                      edge="end"
-                      aria-label="delete"
-                      onClick={() => handleDeleteActivity(activity.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          </Paper>
-        </Box>
-
-        <ActivityLeaderboard />
-
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            All Activities Log
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortField === 'userName'}
-                      direction={sortField === 'userName' ? sortDirection : 'asc'}
-                      onClick={() => handleSort('userName')}
-                    >
-                      User
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortField === 'activity'}
-                      direction={sortField === 'activity' ? sortDirection : 'asc'}
-                      onClick={() => handleSort('activity')}
-                    >
-                      Activity
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortField === 'value'}
-                      direction={sortField === 'value' ? sortDirection : 'asc'}
-                      onClick={() => handleSort('value')}
-                    >
-                      Value
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={sortField === 'date'}
-                      direction={sortField === 'date' ? sortDirection : 'asc'}
-                      onClick={() => handleSort('date')}
-                    >
-                      Date
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell sx={{ minWidth: '200px' }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {sortedResults.map((result) => (
-                  <TableRow key={result.id}>
-                    <TableCell>{result.userName}</TableCell>
-                    <TableCell>{result.activity}</TableCell>
-                    <TableCell>{result.value}</TableCell>
-                    <TableCell>{new Date(result.date).toLocaleDateString()}</TableCell>
-                    <TableCell sx={{ display: 'flex', gap: 1 }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="primary"
-                        onClick={() => handleEdit(result)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        onClick={() => handleDelete(result.id)}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-
-        <Dialog open={editDialog} onClose={() => setEditDialog(false)}>
-          <DialogTitle>Edit Result</DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Value"
-              type="number"
-              fullWidth
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit} color="primary">
-              Save
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
-    </Container>
-  );
+  // ... rest of the component code ...
 };
-
-export default AdminPanel;
