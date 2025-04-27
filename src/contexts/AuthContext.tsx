@@ -1,15 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut, 
   onAuthStateChanged,
+  createUserWithEmailAndPassword,
   User
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
 interface AuthContextType {
   currentUser: User | null;
+  isAdmin: boolean;
   signup: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -28,11 +29,25 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      
+      if (user) {
+        try {
+          const token = await user.getIdTokenResult();
+          setIsAdmin(!!token.claims.admin);
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+      
       setLoading(false);
     });
 
@@ -61,13 +76,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signOut(auth);
     } catch (error) {
-      console.error('Error logging out:', error);
+      console.error('Error signing out:', error);
       throw error;
     }
   };
 
   const value = {
     currentUser,
+    isAdmin,
     signup,
     login,
     logout,
