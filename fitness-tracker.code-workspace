@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		// Note: Storing tokens here is NOT recommended for security reasons
+		// Better options: Use Git Credential Manager or VS Code's GitHub extension settings
+		// "github.token": "your-token-here"
+	}
+}
