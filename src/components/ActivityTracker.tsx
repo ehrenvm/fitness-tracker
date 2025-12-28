@@ -236,7 +236,15 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       }
 
       // Use selected date or today's date
-      const dateToUse = entryDate ? new Date(entryDate) : new Date();
+      let dateToUse: Date;
+      if (entryDate) {
+        // Parse the date string (YYYY-MM-DD) and create a date at noon local time
+        // This prevents timezone conversion issues when converting to ISO string
+        const [year, month, day] = entryDate.split('-').map(Number);
+        dateToUse = new Date(year, month - 1, day, 12, 0, 0, 0); // Noon local time
+      } else {
+        dateToUse = new Date();
+      }
       // Store as ISO string for consistency
       // Use the first selected user for new entries (or the single user if only one is selected)
       const userNameForEntry = userNames.length > 0 ? userNames[0] : '';
