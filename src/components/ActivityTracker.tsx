@@ -49,7 +49,7 @@ interface ActivityResult {
 }
 
 interface ActivityTrackerProps {
-  userName: string;
+  userNames: string[];
 }
 
 type SortField = 'date' | 'value';
@@ -76,7 +76,7 @@ const isCompoundUnit = (activity: string): boolean => {
   return match ? match[1].includes('/') : false;
 };
 
-const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
+const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const [user] = useAuthState(auth);
   const [selectedActivity, setSelectedActivity] = useState('');
   const [value, setValue] = useState<ActivityValue>({ value1: '', value2: '' });
@@ -109,14 +109,18 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
     loadActivities();
   }, []);
 
-  // Load user data (gender and birthdate) from Firebase
+  // Load user data (gender and birthdate) from Firebase - only for single user
   useEffect(() => {
     const loadUserData = async () => {
-      if (!userName) return;
+      if (userNames.length !== 1) {
+        setUserGender(undefined);
+        setUserBirthdate(undefined);
+        return;
+      }
       
       try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('name', '==', userName));
+        const q = query(usersRef, where('name', '==', userNames[0]));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
@@ -133,7 +137,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
     };
 
     loadUserData();
-  }, [userName]);
+  }, [userNames]);
 
   // Add a shared sorting function
   const sortResults = useCallback((data: ActivityResult[]) => {
@@ -152,18 +156,36 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
 
   const loadResults = useCallback(async () => {
     try {
-      console.log('Loading results for user:', userName);
+      if (userNames.length === 0) {
+        setResults([]);
+        setFilteredResults([]);
+        return;
+      }
+
+      console.log('Loading results for users:', userNames);
       const resultsRef = collection(db, 'results');
-      const q = query(
-        resultsRef,
-        where('userName', '==', userName),
-        orderBy('date', 'desc')
+      
+      // Fetch results for all selected users
+      const queries = userNames.map(userName => 
+        query(
+          resultsRef,
+          where('userName', '==', userName),
+          orderBy('date', 'desc')
+        )
       );
-      const querySnapshot = await getDocs(q);
-      const loadedResults = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ActivityResult[];
+      
+      const querySnapshots = await Promise.all(queries.map(q => getDocs(q)));
+      const loadedResults: ActivityResult[] = [];
+      
+      querySnapshots.forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
+          loadedResults.push({
+            id: doc.id,
+            ...doc.data()
+          } as ActivityResult);
+        });
+      });
+      
       console.log('Found results:', loadedResults);
       setResults(loadedResults);
       
@@ -178,7 +200,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
     } catch (error) {
       console.error('Error loading results:', error);
     }
-  }, [userName, selectedActivities, sortResults]);
+  }, [userNames, selectedActivities, sortResults]);
 
   useEffect(() => {
     loadResults();
@@ -216,13 +238,16 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
       // Use selected date or today's date
       const dateToUse = entryDate ? new Date(entryDate) : new Date();
       // Store as ISO string for consistency
+      // Use the first selected user for new entries (or the single user if only one is selected)
+      const userNameForEntry = userNames.length > 0 ? userNames[0] : '';
+      
       const result = {
         activity: selectedActivity,
         value: finalValue,
         originalValue: isCompound ? value : undefined,
         date: dateToUse.toISOString(),
         userId: user.uid,
-        userName: userName
+        userName: userNameForEntry
       };
 
       const docRef = await addDoc(collection(db, 'results'), result);
@@ -230,7 +255,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
       // Log analytics for new activity data
       logAnalyticsEvent(ANALYTICS_EVENTS.ACTIVITY_DATA_ADDED, {
         userId: user.uid,
-        userName: userName,
+        userName: userNameForEntry,
         activity: selectedActivity,
         value: finalValue,
         isCompound,
@@ -238,13 +263,13 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
       });
 
       // Check for performance milestones
-      const userResults = results.filter(r => r.activity === selectedActivity);
+      const userResults = results.filter(r => r.activity === selectedActivity && r.userName === userNameForEntry);
       if (userResults.length > 0) {
         const personalBest = Math.max(...userResults.map(r => r.value));
         if (finalValue > personalBest) {
           logAnalyticsEvent(ANALYTICS_EVENTS.PERFORMANCE_MILESTONE, {
             userId: user.uid,
-            userName: userName,
+            userName: userNameForEntry,
             activity: selectedActivity,
             value: finalValue,
             type: 'personal_best',
@@ -299,37 +324,45 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
         </Typography>
         
         <Typography variant="h6" gutterBottom>
-          Welcome, {userName}!
-          {(() => {
-            const genderAbbr = userGender === 'Male' ? 'M' : userGender === 'Female' ? 'F' : userGender === 'Non-Binary' ? 'NB' : null;
-            let age: number | null = null;
-            
-            if (userBirthdate) {
-              try {
-                // Parse MM/DD/YYYY format
-                const [month, day, year] = userBirthdate.split('/').map(Number);
-                const birthDate = new Date(year, month - 1, day);
-                const today = new Date();
-                age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                  age--;
+          {userNames.length === 0 ? (
+            'Select a user to view their activity tracker'
+          ) : userNames.length === 1 ? (
+            <>
+              Welcome, {userNames[0]}!
+              {(() => {
+                const genderAbbr = userGender === 'Male' ? 'M' : userGender === 'Female' ? 'F' : userGender === 'Non-Binary' ? 'NB' : null;
+                let age: number | null = null;
+                
+                if (userBirthdate) {
+                  try {
+                    // Parse MM/DD/YYYY format
+                    const [month, day, year] = userBirthdate.split('/').map(Number);
+                    const birthDate = new Date(year, month - 1, day);
+                    const today = new Date();
+                    age = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                      age--;
+                    }
+                  } catch (e) {
+                    console.error('Error calculating age:', e);
+                  }
                 }
-              } catch (e) {
-                console.error('Error calculating age:', e);
-              }
-            }
-            
-            const infoParts: string[] = [];
-            if (genderAbbr) infoParts.push(genderAbbr);
-            if (age !== null) infoParts.push(`${age} years`);
-            
-            return infoParts.length > 0 ? (
-              <Typography component="span" sx={{ fontSize: '0.6em' }}>
-                {' '}({infoParts.join(', ')})
-              </Typography>
-            ) : null;
-          })()}
+                
+                const infoParts: string[] = [];
+                if (genderAbbr) infoParts.push(genderAbbr);
+                if (age !== null) infoParts.push(`${age} years`);
+                
+                return infoParts.length > 0 ? (
+                  <Typography component="span" sx={{ fontSize: '0.6em' }}>
+                    {' '}({infoParts.join(', ')})
+                  </Typography>
+                ) : null;
+              })()}
+            </>
+          ) : (
+            `Viewing ${userNames.length} users: ${userNames.join(', ')}`
+          )}
         </Typography>
 
         <Grid container spacing={3}>
@@ -487,6 +520,11 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userName }) => {
                         primary={
                           <Typography variant="subtitle1">
                             {result.activity}
+                            {userNames.length > 1 && (
+                              <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                ({result.userName})
+                              </Typography>
+                            )}
                           </Typography>
                         }
                         secondary={

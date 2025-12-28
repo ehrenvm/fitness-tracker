@@ -33,22 +33,24 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 const App: React.FC = () => {
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [highlight, setHighlight] = useState(false);
   const highlightTimeout = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
 
-  const handleUserSelect = (userName: string): void => {
-    setSelectedUser(userName);
-    setHighlight(true);
-    if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
-    highlightTimeout.current = setTimeout(() => setHighlight(false), 2500);
+  const handleUserSelect = (userNames: string[]): void => {
+    setSelectedUsers(userNames);
+    if (userNames.length > 0) {
+      setHighlight(true);
+      if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
+      highlightTimeout.current = setTimeout(() => setHighlight(false), 2500);
+    }
   };
 
   const handleUserDeleted = (): void => {
     setRefreshTrigger(prev => prev + 1);
-    setSelectedUser(null);
+    setSelectedUsers([]);
   };
 
   const handleAdminClick = (): void => {
@@ -78,7 +80,7 @@ const App: React.FC = () => {
                           <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
                             <UserList 
                               onUserSelect={handleUserSelect}
-                              selectedUser={selectedUser}
+                              selectedUsers={selectedUsers}
                               refreshTrigger={refreshTrigger}
                               onAdminClick={handleAdminClick}
                             />
@@ -86,8 +88,8 @@ const App: React.FC = () => {
                           <Box sx={{ width: '75%', borderRadius: 4 }}
                             className={highlight ? 'highlight-activity-tracker' : ''}
                           >
-                            {selectedUser ? (
-                              <ActivityTracker userName={selectedUser} />
+                            {selectedUsers.length > 0 ? (
+                              <ActivityTracker userNames={selectedUsers} />
                             ) : (
                               <Box sx={{ 
                                 display: 'flex', 

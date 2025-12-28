@@ -32,8 +32,8 @@ import { useUser } from '../contexts/UserContext';
 
 interface UserListProps {
   onAdminClick: () => void;
-  onUserSelect: (userName: string) => void;
-  selectedUser: string | null;
+  onUserSelect: (userNames: string[]) => void;
+  selectedUsers: string[];
   refreshTrigger?: number;
 }
 
@@ -46,7 +46,7 @@ interface UserDoc {
   birthdate?: string;
 }
 
-const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUser, refreshTrigger }) => {
+const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUsers, refreshTrigger }) => {
   const { userName, setUserName } = useUser();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('');
   const [newUserGender, setNewUserGender] = useState<string>('');
   const [newUserBirthdate, setNewUserBirthdate] = useState<string>('');
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   const loadUsers = async () => {
     try {
@@ -245,38 +246,74 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         </Box>
       ) : (
         <List sx={{ overflow: 'auto', flexGrow: 1 }}>
-          {filteredUsers.map((user) => (
-            <ListItem key={user.id} disablePadding>
-              <ListItemButton 
-                selected={userName === user.name}
-                onClick={() => {
-                  setUserName(user.name);
-                  onUserSelect(user.name);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              >
-                <ListItemText 
-                  primary={user.name}
-                  secondary={
-                    user.tags && user.tags.length > 0 ? (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                        {user.tags.map((tag) => (
-                          <Chip
-                            key={tag}
-                            label={tag}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                            sx={{ height: 20, fontSize: '0.7rem' }}
-                          />
-                        ))}
-                      </Box>
-                    ) : null
-                  }
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
+          {filteredUsers.map((user, index) => {
+            const isSelected = selectedUsers.includes(user.name);
+            return (
+              <ListItem key={user.id} disablePadding>
+                <ListItemButton 
+                  selected={isSelected}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const newSelectedUsers = [...selectedUsers];
+                    const currentIndex = filteredUsers.findIndex(u => u.id === user.id);
+                    
+                    if (e.ctrlKey || e.metaKey) {
+                      // Ctrl/Cmd+click: toggle selection
+                      if (isSelected) {
+                        const removeIndex = newSelectedUsers.indexOf(user.name);
+                        if (removeIndex > -1) {
+                          newSelectedUsers.splice(removeIndex, 1);
+                        }
+                      } else {
+                        newSelectedUsers.push(user.name);
+                      }
+                      setLastSelectedIndex(currentIndex);
+                    } else if (e.shiftKey && lastSelectedIndex !== null) {
+                      // Shift+click: select range
+                      const start = Math.min(lastSelectedIndex, currentIndex);
+                      const end = Math.max(lastSelectedIndex, currentIndex);
+                      const rangeUsers = filteredUsers.slice(start, end + 1).map(u => u.name);
+                      // Merge with existing selection
+                      const combined = Array.from(new Set([...newSelectedUsers, ...rangeUsers]));
+                      newSelectedUsers.splice(0, newSelectedUsers.length, ...combined);
+                    } else {
+                      // Regular click: single selection
+                      newSelectedUsers.splice(0, newSelectedUsers.length, user.name);
+                      setLastSelectedIndex(currentIndex);
+                    }
+                    
+                    // Update the first selected user in UserContext for backward compatibility
+                    if (newSelectedUsers.length > 0) {
+                      setUserName(newSelectedUsers[0]);
+                    }
+                    
+                    onUserSelect(newSelectedUsers);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  <ListItemText 
+                    primary={user.name}
+                    secondary={
+                      user.tags && user.tags.length > 0 ? (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+                          {user.tags.map((tag) => (
+                            <Chip
+                              key={tag}
+                              label={tag}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                              sx={{ height: 20, fontSize: '0.7rem' }}
+                            />
+                          ))}
+                        </Box>
+                      ) : null
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
           {filteredUsers.length === 0 && searchTerm.trim() && (
             <Box sx={{ p: 2 }}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
