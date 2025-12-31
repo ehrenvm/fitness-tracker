@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
   LineChart,
   Line,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   ComposedChart,
@@ -218,16 +220,39 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
       return [];
     }
 
+    // Helper function to get consistent date string (YYYY-MM-DD)
+    const getDateKey = (dateStr: string): string => {
+      try {
+        const date = new Date(dateStr);
+        // Handle timezone issues by using UTC methods
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        console.error('Error parsing date:', dateStr, e);
+        return '';
+      }
+    };
+
+    // Helper function to format date for display
+    const formatDateForDisplay = (dateKey: string): string => {
+      const [year, month, day] = dateKey.split('-');
+      return `${month}/${day}/${year}`;
+    };
+
     // Group results by date and activity
     const dateActivityMap = new Map<string, Map<string, number[]>>();
     
     results.forEach(result => {
       if (selectedActivities.includes(result.activity)) {
-        const dateStr = new Date(result.date).toLocaleDateString();
-        if (!dateActivityMap.has(dateStr)) {
-          dateActivityMap.set(dateStr, new Map());
+        const dateKey = getDateKey(result.date);
+        if (!dateKey) return; // Skip invalid dates
+        
+        if (!dateActivityMap.has(dateKey)) {
+          dateActivityMap.set(dateKey, new Map());
         }
-        const activityMap = dateActivityMap.get(dateStr)!;
+        const activityMap = dateActivityMap.get(dateKey)!;
         if (!activityMap.has(result.activity)) {
           activityMap.set(result.activity, []);
         }
@@ -242,16 +267,22 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     }> = [];
 
     const allDates = Array.from(dateActivityMap.keys()).sort((a, b) => 
-      new Date(a).getTime() - new Date(b).getTime()
+      a.localeCompare(b)
     );
 
-    allDates.forEach(dateStr => {
-      const activityMap = dateActivityMap.get(dateStr)!;
-      const dataPoint: { date: string; [key: string]: string | number | null } = { date: dateStr };
+    allDates.forEach(dateKey => {
+      const activityMap = dateActivityMap.get(dateKey)!;
+      const dataPoint: { date: string; [key: string]: string | number | null } = { 
+        date: formatDateForDisplay(dateKey) 
+      };
+      
+      let hasAnyData = false;
       
       selectedActivities.forEach(activity => {
         const values = activityMap.get(activity);
-        if (values && values.length > 0) {
+        // Only calculate stats if we have at least 2 values (from different users)
+        if (values && values.length >= 2) {
+          hasAnyData = true;
           // Sort values for median calculation
           const sortedValues = [...values].sort((a, b) => a - b);
           const min = sortedValues[0];
@@ -269,6 +300,13 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           dataPoint[`${activity}_min`] = min;
           dataPoint[`${activity}_median`] = median;
           dataPoint[`${activity}_max`] = max;
+        } else if (values && values.length === 1) {
+          // Single value - min, median, and max are all the same
+          hasAnyData = true;
+          const singleValue = values[0];
+          dataPoint[`${activity}_min`] = singleValue;
+          dataPoint[`${activity}_median`] = singleValue;
+          dataPoint[`${activity}_max`] = singleValue;
         } else {
           dataPoint[`${activity}_min`] = null;
           dataPoint[`${activity}_median`] = null;
@@ -276,7 +314,10 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
         }
       });
       
-      statsData.push(dataPoint);
+      // Only add data point if it has at least one activity with data
+      if (hasAnyData) {
+        statsData.push(dataPoint);
+      }
     });
 
     return statsData;
@@ -454,56 +495,121 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           </>
         )}
       </Stack>
-      <ResponsiveContainer width="100%" height="90%">
+      <Box sx={{ width: '100%', height: 350, overflow: 'auto' }}>
         {showStatisticalView ? (
-          <ComposedChart
-            data={statisticalData}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis 
-              label={{ 
-                value: 'Value', 
-                angle: -90, 
-                position: 'insideLeft' 
-              }}
-            />
-            <Tooltip content={statisticalTooltip} />
-            <Legend />
-            {selectedActivities.map((activity, index) => {
-              const color = colorPalette[index % colorPalette.length];
-              return (
-                <React.Fragment key={activity}>
-                  <Bar
-                    dataKey={`${activity}_median`}
-                    name={`${activity} (Median)`}
-                    fill={color}
-                    opacity={0.8}
-                  />
+          statisticalData.length > 0 ? (
+            (() => {
+              // Build all lines for all activities
+              const lines: React.ReactElement[] = [];
+              
+              selectedActivities.forEach((activity, index) => {
+                const color = colorPalette[index % colorPalette.length];
+                const medianKey = `${activity}_median`;
+                const minKey = `${activity}_min`;
+                const maxKey = `${activity}_max`;
+                
+                // Check if this activity has any data
+                const hasData = statisticalData.some(d => {
+                  const median = d[medianKey];
+                  return median !== null && median !== undefined && !isNaN(Number(median));
+                });
+                
+                if (!hasData) return;
+                
+                // Min line
+                lines.push(
                   <Line
-                    type="linear"
-                    dataKey={`${activity}_min`}
+                    key={`min-line-${index}`}
+                    type="monotone"
+                    dataKey={minKey}
                     name={`${activity} (Min)`}
-                    stroke="#F44336"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
+                    stroke={color}
+                    strokeWidth={1}
                     strokeDasharray="5 5"
+                    strokeOpacity={0.5}
+                    dot={false}
+                    connectNulls={false}
+                    isAnimationActive={false}
                   />
+                );
+                
+                // Max line
+                lines.push(
                   <Line
-                    type="linear"
-                    dataKey={`${activity}_max`}
+                    key={`max-line-${index}`}
+                    type="monotone"
+                    dataKey={maxKey}
                     name={`${activity} (Max)`}
-                    stroke="#2196F3"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
+                    stroke={color}
+                    strokeWidth={1}
                     strokeDasharray="5 5"
+                    strokeOpacity={0.5}
+                    dot={false}
+                    connectNulls={false}
+                    isAnimationActive={false}
                   />
-                </React.Fragment>
+                );
+                
+                // Median line - the primary line
+                lines.push(
+                  <Line
+                    key={`median-line-${index}`}
+                    type="monotone"
+                    dataKey={medianKey}
+                    name={`${activity} (Median)`}
+                    stroke={color}
+                    strokeWidth={4}
+                    dot={{ r: 6, fill: color }}
+                    connectNulls={false}
+                    isAnimationActive={false}
+                  />
+                );
+              });
+              
+              return (
+                <LineChart
+                  data={statisticalData}
+                  width={Math.max(500, statisticalData.length * 100)}
+                  height={300}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="date"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    interval={0}
+                  />
+                  <YAxis 
+                    domain={['auto', 'auto']}
+                    label={{ 
+                      value: 'Value', 
+                      angle: -90, 
+                      position: 'insideLeft' 
+                    }}
+                  />
+                  <Tooltip content={statisticalTooltip} />
+                  <Legend />
+                  {lines}
+                </LineChart>
               );
-            })}
-          </ComposedChart>
+            })()
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: 2 }}>
+              <Typography variant="body2" color="textSecondary">
+                No statistical data available.
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Ensure multiple users have data for the same dates and activities.
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Users: {uniqueUsers.join(', ')} | Activities: {selectedActivities.join(', ')} | Data points: {statisticalData.length}
+              </Typography>
+            </Box>
+          )
         ) : (
+          <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
@@ -555,8 +661,9 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
               );
             })}
           </LineChart>
+          </ResponsiveContainer>
         )}
-      </ResponsiveContainer>
+      </Box>
     </Box>
   );
 

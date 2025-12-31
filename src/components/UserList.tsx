@@ -287,8 +287,19 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                       setUserName(newSelectedUsers[0]);
                     }
                     
+                    // Only scroll to top when:
+                    // 1. Regular click (not Ctrl/Shift) that results in single selection
+                    // 2. OR switching from multi-select back to single select
+                    const isRegularClick = !e.ctrlKey && !e.metaKey && !e.shiftKey;
+                    const isSingleSelect = newSelectedUsers.length === 1;
+                    const wasMultiSelect = selectedUsers.length > 1;
+                    const switchingToSingle = wasMultiSelect && isSingleSelect;
+                    
+                    if (isRegularClick && (isSingleSelect || switchingToSingle)) {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                    
                     onUserSelect(newSelectedUsers);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                 >
                   <ListItemText 
