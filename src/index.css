@@ -18,14 +18,15 @@ a {
   color: #646cff;
   text-decoration: inherit;
 }
+
 a:hover {
   color: #535bf2;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+  /* display: flex; */
+  /* place-items: center; */
   min-width: 320px;
   min-height: 100vh;
 }
@@ -46,9 +47,11 @@ button {
   cursor: pointer;
   transition: border-color 0.25s;
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -59,17 +62,19 @@ button:focus-visible {
     color: #213547;
     background-color: #ffffff;
   }
+
   a:hover {
     color: #747bff;
   }
+
   button {
     background-color: #f9f9f9;
   }
 }
 
 .highlight-activity-tracker {
-  box-shadow: 0 0 0 6px #00e676, 0 0 30px 8px #00e676, 0 0 50px 12px rgba(0, 230, 118, 0.5) !important;
-  border: 3px solid #00e676 !important;
-  background: rgba(0, 230, 118, 0.05) !important;
+  box-shadow: 0 0 0 6px #056c01, 0 0 30px 8px #056c01, 0 0 50px 12px rgba(5, 108, 1, 0.5) !important;
+  border: 3px solid #056c01 !important;
+  background: rgba(5, 108, 1, 0.05) !important;
   transition: box-shadow 0.3s ease-in-out, border 0.3s ease-in-out, background 0.3s ease-in-out;
 }

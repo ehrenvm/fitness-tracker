@@ -68,17 +68,17 @@ const App: React.FC = () => {
         <BackgroundContainer>
           <ContentContainer>
             <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-              <AppHeader onAdminClick={handleAdminClick} />
+              {location.pathname !== '/login' && <AppHeader onAdminClick={handleAdminClick} />}
               <Box sx={{ flex: 1 }}>
                 <Routes>
                   <Route path="/login" element={<Login />} />
-                  
+
                   <Route path="/" element={
                     <ProtectedRoute>
                       <Container maxWidth="lg">
                         <Box sx={{ display: 'flex', gap: 3 }}>
                           <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
-                            <UserList 
+                            <UserList
                               onUserSelect={handleUserSelect}
                               selectedUsers={selectedUsers}
                               refreshTrigger={refreshTrigger}
@@ -91,9 +91,9 @@ const App: React.FC = () => {
                             {selectedUsers.length > 0 ? (
                               <ActivityTracker userNames={selectedUsers} />
                             ) : (
-                              <Box sx={{ 
-                                display: 'flex', 
-                                justifyContent: 'center', 
+                              <Box sx={{
+                                display: 'flex',
+                                justifyContent: 'center',
                                 alignItems: 'center',
                                 height: '100%',
                                 p: 3
@@ -112,7 +112,7 @@ const App: React.FC = () => {
                   <Route path="/admin" element={
                     <ProtectedRoute>
                       <AdminRoute>
-                        <AdminPanel 
+                        <AdminPanel
                           onBack={handleBackClick}
                           onUserDeleted={handleUserDeleted}
                         />
