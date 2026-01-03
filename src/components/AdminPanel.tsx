@@ -92,6 +92,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
   const [editUserGender, setEditUserGender] = useState<string>('');
   const [editUserBirthdate, setEditUserBirthdate] = useState<string>('');
+  const [editUserName, setEditUserName] = useState<string>('');
+  const [editActivityDialog, setEditActivityDialog] = useState(false);
+  const [activityToEdit, setActivityToEdit] = useState<string | null>(null);
+  const [editActivityName, setEditActivityName] = useState('');
 
   const loadAllResults = async () => {
     try {
@@ -114,7 +118,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   // Sort results based on current sort field and direction
   const sortedResults = [...results].sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sortField) {
       case 'userName':
         comparison = a.userName.localeCompare(b.userName);
@@ -193,9 +197,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const resultRef = doc(db, 'results', resultId);
       const resultDoc = await getDoc(resultRef);
       const resultData = resultDoc.data();
-      
+
       await deleteDoc(resultRef);
-      
+
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'delete_result',
         resultId,
@@ -203,7 +207,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         userName: resultData?.userName,
         value: resultData?.value
       });
-      
+
       await loadAllResults();
     } catch (error) {
       console.error('Error deleting result:', error);
@@ -239,10 +243,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       // Force token refresh to get the new claims
       await user.getIdToken(true);
-      
+
       // Get the fresh token and verify admin claim
       const idTokenResult = await user.getIdTokenResult();
-      
+
       if (idTokenResult.claims.admin) {
         setIsAuthenticated(true);
         setError(null);
@@ -305,6 +309,56 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   };
 
+  const handleEditActivity = (activity: string) => {
+    setActivityToEdit(activity);
+    setEditActivityName(activity);
+    setEditActivityDialog(true);
+  };
+
+  const handleSaveActivity = async () => {
+    if (!activityToEdit || !editActivityName.trim()) return;
+
+    const newName = editActivityName.trim();
+    if (newName === activityToEdit) {
+      setEditActivityDialog(false);
+      return;
+    }
+
+    try {
+      // 1. Update activity list in config
+      const activitiesRef = doc(db, 'config', 'activities');
+      const newActivities = activities.map(a => a === activityToEdit ? newName : a);
+      await setDoc(activitiesRef, { list: newActivities });
+
+      // 2. Update all results with this activity name
+      const resultsRef = collection(db, 'results');
+      const q = query(resultsRef, where('activity', '==', activityToEdit));
+      const querySnapshot = await getDocs(q);
+
+      const updatePromises = querySnapshot.docs.map(doc => updateDoc(doc.ref, { activity: newName }));
+      await Promise.all(updatePromises);
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'edit_activity',
+        oldName: activityToEdit,
+        newName: newName,
+        resultsUpdated: querySnapshot.size
+      });
+
+      // Update local state
+      setActivities(newActivities);
+      setEditActivityDialog(false);
+      setActivityToEdit(null);
+      setEditActivityName('');
+
+      // Reload results to reflect changes in the table
+      await loadAllResults();
+    } catch (error) {
+      console.error('Error updating activity:', error);
+      setError('Failed to update activity. Please try again.');
+    }
+  };
+
   // Load activities from Firebase on component mount
   useEffect(() => {
     const loadActivities = async () => {
@@ -354,12 +408,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     try {
       // Delete user document
       await deleteDoc(doc(db, 'users', user.id));
-      
+
       // Delete all user's results
       const resultsRef = collection(db, 'results');
       const q = query(resultsRef, where('userName', '==', user.name));
       const querySnapshot = await getDocs(q);
-      
+
       const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(deletePromises);
 
@@ -433,6 +487,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditUser = (user: User) => {
     setSelectedUserForEdit(user);
+    setEditUserName(user.name);
     setEditUserGender(user.gender || '');
     setEditUserBirthdate(user.birthdate || '');
     setEditUserDialog(true);
@@ -444,15 +499,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     try {
       const userRef = doc(db, 'users', selectedUserForEdit.id);
       const updateData: any = {};
-      
+
+      const newName = editUserName.trim();
+      if (newName && newName !== selectedUserForEdit.name) {
+        updateData.name = newName;
+      }
+
       if (editUserGender) {
         updateData.gender = editUserGender;
       } else {
-        updateData.gender = null; // Remove gender if empty
+        updateData.gender = null;
       }
-      
+
       if (editUserBirthdate) {
-        // Validate birthdate format
         const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
         if (dateRegex.test(editUserBirthdate)) {
           updateData.birthdate = editUserBirthdate;
@@ -461,30 +520,48 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           return;
         }
       } else {
-        updateData.birthdate = null; // Remove birthdate if empty
+        updateData.birthdate = null;
       }
-      
+
       await updateDoc(userRef, updateData);
+
+      // If name changed, update all results
+      if (updateData.name) {
+        const resultsRef = collection(db, 'results');
+        const q = query(resultsRef, where('userName', '==', selectedUserForEdit.name));
+        const querySnapshot = await getDocs(q);
+
+        const updatePromises = querySnapshot.docs.map(doc => updateDoc(doc.ref, { userName: updateData.name }));
+        await Promise.all(updatePromises);
+      }
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'update_user_info',
         userId: selectedUserForEdit.id,
-        userName: selectedUserForEdit.name
+        userName: selectedUserForEdit.name,
+        newName: updateData.name || undefined
       });
 
       // Update local state
       setUsers(prevUsers =>
         prevUsers.map(u =>
-          u.id === selectedUserForEdit.id ? { 
-            ...u, 
+          u.id === selectedUserForEdit.id ? {
+            ...u,
+            name: updateData.name || u.name,
             gender: editUserGender || undefined,
             birthdate: editUserBirthdate || undefined
           } : u
         )
       );
 
+      // Reload results if name changed to ensure consistency in the table
+      if (updateData.name) {
+        await loadAllResults();
+      }
+
       setEditUserDialog(false);
       setSelectedUserForEdit(null);
+      setEditUserName('');
       setEditUserGender('');
       setEditUserBirthdate('');
     } catch (error) {
@@ -740,6 +817,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 <ListItemSecondaryAction>
                   <IconButton
                     edge="end"
+                    aria-label="edit"
+                    onClick={() => handleEditActivity(activity)}
+                    sx={{ mr: 1 }}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    edge="end"
                     aria-label="delete"
                     onClick={() => handleDeleteActivity(activity)}
                   >
@@ -783,8 +868,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       </Dialog>
 
       {/* Add Activity Dialog */}
-      <Dialog 
-        open={addActivityDialog} 
+      <Dialog
+        open={addActivityDialog}
         onClose={() => setAddActivityDialog(false)}
         maxWidth="sm"
         fullWidth
@@ -810,8 +895,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddActivityDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleAddActivity} 
+          <Button
+            onClick={handleAddActivity}
             color="primary"
             disabled={!newActivity.trim()}
           >
@@ -891,7 +976,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             Add tags to group users (e.g., #teamstars2025, #event2025). Tags are case-sensitive.
           </Typography>
-          
+
           <Box sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
               <TextField
@@ -916,7 +1001,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 Add
               </Button>
             </Box>
-            
+
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, minHeight: 60, p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
               {userTags.length > 0 ? (
                 userTags.map((tag) => (
@@ -974,7 +1059,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               {error}
             </Alert>
           )}
-          <FormControl fullWidth sx={{ mb: 2, mt: 1 }}>
+          <TextField
+            fullWidth
+            label="Name"
+            value={editUserName}
+            onChange={(e) => setEditUserName(e.target.value)}
+            margin="dense"
+            sx={{ mb: 2, mt: 1 }}
+          />
+          <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Gender</InputLabel>
             <Select
               value={editUserGender}
@@ -1025,6 +1118,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             Cancel
           </Button>
           <Button onClick={handleSaveUser} color="primary" variant="contained">
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Edit Activity Dialog */}
+      <Dialog
+        open={editActivityDialog}
+        onClose={() => setEditActivityDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Activity</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Renaming an activity will update all existing records for this activity.
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Activity Name"
+            fullWidth
+            value={editActivityName}
+            onChange={(e) => setEditActivityName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditActivityDialog(false)}>Cancel</Button>
+          <Button
+            onClick={handleSaveActivity}
+            color="primary"
+            variant="contained"
+            disabled={!editActivityName.trim()}
+          >
             Save
           </Button>
         </DialogActions>
