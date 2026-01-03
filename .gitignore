@@ -30,3 +30,5 @@ build
 .cursor/
 .specstory/
 ~/
+
+.firebase
