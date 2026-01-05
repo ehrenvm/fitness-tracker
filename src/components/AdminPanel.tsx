@@ -974,7 +974,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Add tags to group users (e.g., #teamstars2025, #event2025). Tags are case-sensitive.
+            Add tags to group users (e.g., #teamstars2026, #event2026). Tags are case-sensitive.
           </Typography>
 
           <Box sx={{ mb: 2 }}>
@@ -991,7 +991,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                     handleAddTag();
                   }
                 }}
-                placeholder="e.g., #teamstars2025"
+                placeholder="e.g., #teamstars2026"
               />
               <Button
                 variant="contained"

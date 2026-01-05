@@ -4,7 +4,8 @@ import {
   Toolbar,
   Typography,
   Box,
-  IconButton
+  IconButton,
+  Avatar
 } from '@mui/material';
 import { AdminPanelSettings as AdminIcon, Logout as LogoutIcon } from '@mui/icons-material';
 import { auth } from '../firebase';
@@ -28,12 +29,19 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
   return (
     <AppBar position="static" sx={{ bgcolor: 'primary.main', mb: 3 }}>
       <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          Performance Tracker{' '}
-          <Typography component="span" sx={{ fontSize: '0.7em', opacity: 0.8 }}>
-            2025
+        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, gap: 1 }}>
+          <Avatar
+            src="/favicon_io/favicon-32x32.png"
+            alt="Performance Tracker"
+            sx={{ width: 32, height: 32 }}
+          />
+          <Typography variant="h6" component="div">
+            Performance Tracker{' '}
+            <Typography component="span" sx={{ fontSize: '0.7em', opacity: 0.8 }}>
+              2026
+            </Typography>
           </Typography>
-        </Typography>
+        </Box>
         
         {user && (
           <Typography variant="body1" sx={{ mr: 2 }}>
