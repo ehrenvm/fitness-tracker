@@ -18,7 +18,6 @@ build
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
@@ -28,7 +27,31 @@ build
 # sensitive files
 .env
 .cursor/
+serviceAccountKey.json
 .specstory/
 ~/
 
+# Firebase
 .firebase
+
+# Test coverage and reports
+coverage/
+junit.xml
+*.lcov
+
+# Backup files
+*.bak
+*.backup
+
+# Data files (keep examples, ignore actual data)
+data/*.csv
+data/users.yaml
+!data/users.example.yaml
+!data/README.md
+
+# IDE and editor files
+.cursorindexingignore
+*.code-workspace
+
+# OS files
+Thumbs.db

@@ -1,0 +1,48 @@
+# Example YAML file for uploading users to Firebase
+# 
+# Required fields:
+#   - firstName: (string) User's first name
+#
+# Optional fields:
+#   - lastName: (string) User's last name
+#   - gender: (string) One of: "Male", "Female", "Non-Binary"
+#   - birthdate: (string) Format: MM/DD/YYYY (e.g., "01/15/2000")
+#   - tags: (array of strings) Tags to associate with the user
+#
+# Usage:
+#   node scripts/upload-users.js data/users.yaml
+
+- firstName: John
+  lastName: Doe
+  gender: Male
+  birthdate: "01/15/1990"
+  tags:
+    - athlete
+    - premium
+
+- firstName: Jane
+  lastName: Smith
+  gender: Female
+  birthdate: "03/22/1995"
+  tags:
+    - beginner
+
+- firstName: Alex
+  lastName: Johnson
+  gender: Non-Binary
+  birthdate: "07/10/2000"
+  tags: []
+
+- firstName: Sam
+  # lastName is optional
+  gender: Male
+  # birthdate is optional
+  # tags are optional
+
+- firstName: Maria
+  lastName: Garcia
+  # gender is optional
+  birthdate: "12/05/1988"
+  tags:
+    - coach
+    - trainer

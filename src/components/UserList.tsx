@@ -22,7 +22,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Autocomplete
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -39,12 +40,18 @@ interface UserListProps {
 
 interface UserDoc {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   createdAt: string;
   tags?: string[];
   gender?: string;
   birthdate?: string;
 }
+
+// Helper function to get full name
+const getFullName = (user: UserDoc): string => {
+  return `${user.firstName} ${user.lastName}`.trim();
+};
 
 const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUsers, refreshTrigger }) => {
   const { userName, setUserName } = useUser();
@@ -56,41 +63,96 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('');
   const [newUserGender, setNewUserGender] = useState<string>('');
   const [newUserBirthdate, setNewUserBirthdate] = useState<string>('');
+  const [newUserFirstName, setNewUserFirstName] = useState<string>('');
+  const [newUserLastName, setNewUserLastName] = useState<string>('');
+  const [newUserTags, setNewUserTags] = useState<string[]>([]);
+  const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   const loadUsers = async () => {
     try {
+      setLoading(true);
       const usersRef = collection(db, 'users');
       const snapshot = await getDocs(usersRef);
       
-      // Create a map to store users by name with their documents
+      // Create a map to store users by full name with their documents
       const userMap = new Map<string, UserDoc>();
       
       snapshot.docs.forEach(doc => {
-        const userData = doc.data();
-        const user: UserDoc = {
-          id: doc.id,
-          name: userData.name,
-          createdAt: userData.createdAt,
-          tags: userData.tags || [],
-          gender: userData.gender,
-          birthdate: userData.birthdate
-        };
-        
-        // If we find a duplicate, keep the older entry
-        const existingUser = userMap.get(userData.name);
-        if (!existingUser || new Date(existingUser.createdAt) > new Date(user.createdAt)) {
-          userMap.set(userData.name, user);
+        try {
+          const userData = doc.data();
+          // Handle migration: support both old (name) and new (firstName/lastName) format
+          let firstName = userData.firstName || '';
+          let lastName = userData.lastName || '';
+          
+          // If old format exists, split it
+          if (!firstName && !lastName && userData.name) {
+            const parts = userData.name.trim().split(/\s+/);
+            if (parts.length === 1) {
+              firstName = parts[0];
+              lastName = '';
+            } else if (parts.length > 1) {
+              lastName = parts[parts.length - 1];
+              firstName = parts.slice(0, -1).join(' ');
+            }
+          }
+          
+          // Ensure we have at least a firstName
+          if (!firstName && !lastName) {
+            console.warn(`User ${doc.id} has no name data, skipping`);
+            return;
+          }
+          
+          const user: UserDoc = {
+            id: doc.id,
+            firstName: firstName || '',
+            lastName: lastName || '',
+            createdAt: userData.createdAt || new Date().toISOString(),
+            tags: userData.tags || [],
+            gender: userData.gender,
+            birthdate: userData.birthdate
+          };
+          
+          const fullName = getFullName(user);
+          
+          // If we find a duplicate, keep the older entry
+          const existingUser = userMap.get(fullName);
+          if (!existingUser || new Date(existingUser.createdAt) > new Date(user.createdAt)) {
+            userMap.set(fullName, user);
+          }
+        } catch (error) {
+          console.error(`Error processing user ${doc.id}:`, error);
         }
       });
 
       // Clean up duplicates
       const deletionPromises: Promise<void>[] = [];
       snapshot.docs.forEach(doc => {
-        const userData = doc.data();
-        const keepingUser = userMap.get(userData.name);
-        if (keepingUser && keepingUser.id !== doc.id) {
-          deletionPromises.push(deleteDoc(doc.ref));
+        try {
+          const userData = doc.data();
+          let firstName = userData.firstName || '';
+          let lastName = userData.lastName || '';
+          
+          if (!firstName && !lastName && userData.name) {
+            const parts = userData.name.trim().split(/\s+/);
+            if (parts.length === 1) {
+              firstName = parts[0];
+              lastName = '';
+            } else if (parts.length > 1) {
+              lastName = parts[parts.length - 1];
+              firstName = parts.slice(0, -1).join(' ');
+            }
+          }
+          
+          const fullName = `${firstName} ${lastName}`.trim();
+          if (!fullName) return; // Skip if no name
+          
+          const keepingUser = userMap.get(fullName);
+          if (keepingUser && keepingUser.id !== doc.id) {
+            deletionPromises.push(deleteDoc(doc.ref));
+          }
+        } catch (error) {
+          console.error(`Error processing duplicate check for user ${doc.id}:`, error);
         }
       });
 
@@ -100,11 +162,20 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         console.log(`Cleaned up ${deletionPromises.length} duplicate users`);
       }
 
-      // Update state with unique users (sorted by name)
-      const uniqueUsers = Array.from(userMap.values()).sort((a, b) => 
-        a.name.localeCompare(b.name)
-      );
+      // Update state with unique users (sorted by last name, then first name)
+      const uniqueUsers = Array.from(userMap.values()).sort((a, b) => {
+        const lastNameCompare = a.lastName.localeCompare(b.lastName);
+        if (lastNameCompare !== 0) return lastNameCompare;
+        return a.firstName.localeCompare(b.firstName);
+      });
       setUsers(uniqueUsers);
+      
+      // Extract all unique tags from all users
+      const allTags = Array.from(
+        new Set(uniqueUsers.flatMap(user => user.tags || []))
+      ).sort();
+      setAllExistingTags(allTags);
+      
       setLoading(false);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -117,26 +188,35 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   }, [refreshTrigger]);
 
   const handleRegister = async () => {
-    if (!searchTerm.trim()) {
-      setRegistrationError('Please enter a name');
+    const firstName = newUserFirstName.trim();
+    const lastName = newUserLastName.trim();
+    
+    if (!firstName) {
+      setRegistrationError('Please enter a first name');
       return;
     }
     
     try {
-      const normalizedName = searchTerm.trim();
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('name', '==', normalizedName));
-      const querySnapshot = await getDocs(q);
       
-      if (!querySnapshot.empty) {
+      // Check if user with same firstName and lastName already exists
+      // Fetch all users and check in memory to avoid index requirements
+      const allUsersSnapshot = await getDocs(usersRef);
+      const existingUser = allUsersSnapshot.docs.find(doc => {
+        const data = doc.data();
+        return data.firstName === firstName && data.lastName === lastName;
+      });
+      
+      if (existingUser) {
         setRegistrationError('This name is already registered');
         return;
       }
 
       const newUser: any = {
-        name: normalizedName,
+        firstName,
+        lastName,
         createdAt: new Date().toISOString(),
-        tags: []
+        tags: newUserTags
       };
       
       if (newUserGender) {
@@ -155,10 +235,11 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       }
       
       const userDoc = await addDoc(usersRef, newUser);
+      const fullName = `${firstName} ${lastName}`.trim();
       
       logAnalyticsEvent('user_registration', {
         user_id: userDoc.id,
-        user_name: newUser.name,
+        user_name: fullName,
         registration_date: newUser.createdAt
       });
 
@@ -166,7 +247,10 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       setRegistrationError(null);
       setNewUserGender('');
       setNewUserBirthdate('');
-      setUserName(newUser.name);
+      setNewUserFirstName('');
+      setNewUserLastName('');
+      setNewUserTags([]);
+      setUserName(fullName);
       setSearchTerm('');
       await loadUsers();
     } catch (error) {
@@ -181,7 +265,12 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   ).sort();
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const fullName = getFullName(user);
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      fullName.toLowerCase().includes(searchLower) ||
+      user.firstName.toLowerCase().includes(searchLower) ||
+      user.lastName.toLowerCase().includes(searchLower);
     const matchesTag = !selectedTagFilter || (user.tags || []).includes(selectedTagFilter);
     return matchesSearch && matchesTag;
   });
@@ -208,7 +297,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         <TextField
           fullWidth
           size="small"
-          placeholder="Search or enter new name..."
+          placeholder="Search by name..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
@@ -247,7 +336,8 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       ) : (
         <List sx={{ overflow: 'auto', flexGrow: 1 }}>
           {filteredUsers.map((user, index) => {
-            const isSelected = selectedUsers.includes(user.name);
+            const fullName = getFullName(user);
+            const isSelected = selectedUsers.includes(fullName);
             return (
               <ListItem key={user.id} disablePadding>
                 <ListItemButton 
@@ -260,25 +350,25 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                     if (e.ctrlKey || e.metaKey) {
                       // Ctrl/Cmd+click: toggle selection
                       if (isSelected) {
-                        const removeIndex = newSelectedUsers.indexOf(user.name);
+                        const removeIndex = newSelectedUsers.indexOf(fullName);
                         if (removeIndex > -1) {
                           newSelectedUsers.splice(removeIndex, 1);
                         }
                       } else {
-                        newSelectedUsers.push(user.name);
+                        newSelectedUsers.push(fullName);
                       }
                       setLastSelectedIndex(currentIndex);
                     } else if (e.shiftKey && lastSelectedIndex !== null) {
                       // Shift+click: select range
                       const start = Math.min(lastSelectedIndex, currentIndex);
                       const end = Math.max(lastSelectedIndex, currentIndex);
-                      const rangeUsers = filteredUsers.slice(start, end + 1).map(u => u.name);
+                      const rangeUsers = filteredUsers.slice(start, end + 1).map(u => getFullName(u));
                       // Merge with existing selection
                       const combined = Array.from(new Set([...newSelectedUsers, ...rangeUsers]));
                       newSelectedUsers.splice(0, newSelectedUsers.length, ...combined);
                     } else {
                       // Regular click: single selection
-                      newSelectedUsers.splice(0, newSelectedUsers.length, user.name);
+                      newSelectedUsers.splice(0, newSelectedUsers.length, fullName);
                       setLastSelectedIndex(currentIndex);
                     }
                     
@@ -303,7 +393,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                   }}
                 >
                   <ListItemText 
-                    primary={user.name}
+                    primary={fullName}
                     secondary={
                       user.tags && user.tags.length > 0 ? (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
@@ -333,7 +423,15 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
               <Button
                 variant="contained"
                 fullWidth
-                onClick={() => setShowRegisterDialog(true)}
+                onClick={() => {
+                  // Try to split search term into firstName and lastName
+                  const parts = searchTerm.trim().split(/\s+/);
+                  if (parts.length > 0) {
+                    setNewUserFirstName(parts[0]);
+                    setNewUserLastName(parts.slice(1).join(' ') || '');
+                  }
+                  setShowRegisterDialog(true);
+                }}
               >
                 Register "{searchTerm.trim()}"
               </Button>
@@ -357,20 +455,35 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           setRegistrationError(null);
           setNewUserGender('');
           setNewUserBirthdate('');
+          setNewUserFirstName('');
+          setNewUserLastName('');
+          setNewUserTags([]);
         }}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle>Register New User</DialogTitle>
         <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2 }}>
-            Register "{searchTerm.trim()}" as a new user
-          </Typography>
           {registrationError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {registrationError}
             </Alert>
           )}
+          <TextField
+            fullWidth
+            label="First Name *"
+            value={newUserFirstName}
+            onChange={(e) => setNewUserFirstName(e.target.value)}
+            sx={{ mb: 2, mt: 1 }}
+            required
+          />
+          <TextField
+            fullWidth
+            label="Last Name"
+            value={newUserLastName}
+            onChange={(e) => setNewUserLastName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Gender (Optional)</InputLabel>
             <Select
@@ -408,6 +521,34 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             helperText="Format: MM/DD/YYYY (e.g., 01/15/2000)"
             sx={{ mb: 2 }}
           />
+          <Autocomplete
+            multiple
+            freeSolo
+            options={allExistingTags}
+            value={newUserTags}
+            onChange={(event, newValue) => {
+              setNewUserTags(newValue);
+            }}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip
+                  variant="outlined"
+                  label={option}
+                  {...getTagProps({ index })}
+                  key={option}
+                />
+              ))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tags (Optional)"
+                placeholder="Type to add tags or select existing"
+                helperText="Add tags to group users. Existing tags are shown as suggestions."
+              />
+            )}
+            sx={{ mb: 2 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => {
@@ -415,6 +556,9 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             setRegistrationError(null);
             setNewUserGender('');
             setNewUserBirthdate('');
+            setNewUserFirstName('');
+            setNewUserLastName('');
+            setNewUserTags([]);
           }}>
             Cancel
           </Button>

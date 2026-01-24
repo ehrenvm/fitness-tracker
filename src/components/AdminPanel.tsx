@@ -32,7 +32,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Checkbox
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, Person as PersonIcon, LocalOffer as TagIcon } from '@mui/icons-material';
 import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where } from 'firebase/firestore';
@@ -60,12 +61,19 @@ interface AdminPanelProps {
 
 interface User {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   createdAt: string;
   tags?: string[];
   gender?: string;
   birthdate?: string;
 }
+
+// Helper function to get full name
+const getFullName = (user: User | null): string => {
+  if (!user) return '';
+  return `${user.firstName} ${user.lastName}`.trim();
+};
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [results, setResults] = useState<Result[]>([]);
@@ -87,15 +95,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [editTagsDialog, setEditTagsDialog] = useState(false);
   const [selectedUserForTags, setSelectedUserForTags] = useState<User | null>(null);
   const [userTags, setUserTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
+  const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [editUserDialog, setEditUserDialog] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<User | null>(null);
   const [editUserGender, setEditUserGender] = useState<string>('');
   const [editUserBirthdate, setEditUserBirthdate] = useState<string>('');
-  const [editUserName, setEditUserName] = useState<string>('');
+  const [editUserFirstName, setEditUserFirstName] = useState<string>('');
+  const [editUserLastName, setEditUserLastName] = useState<string>('');
   const [editActivityDialog, setEditActivityDialog] = useState(false);
   const [activityToEdit, setActivityToEdit] = useState<string | null>(null);
   const [editActivityName, setEditActivityName] = useState('');
+  const [editTagDialog, setEditTagDialog] = useState(false);
+  const [tagToEdit, setTagToEdit] = useState<string | null>(null);
+  const [editTagName, setEditTagName] = useState('');
+  const [confirmDeleteTag, setConfirmDeleteTag] = useState<string | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [bulkAddTagDialog, setBulkAddTagDialog] = useState(false);
+  const [bulkTagToAdd, setBulkTagToAdd] = useState<string>('');
+  const [addTagDialog, setAddTagDialog] = useState(false);
+  const [newTagName, setNewTagName] = useState<string>('');
 
   const loadAllResults = async () => {
     try {
@@ -385,19 +403,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const loadUsers = async () => {
     try {
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('name'));
-      const querySnapshot = await getDocs(q);
-      const loadedUsers = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as User[];
+      const querySnapshot = await getDocs(usersRef);
+      const loadedUsers = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        // Handle migration: support both old and new format
+        let firstName = data.firstName || '';
+        let lastName = data.lastName || '';
+        
+        if (!firstName && !lastName && data.name) {
+          const parts = data.name.trim().split(/\s+/);
+          if (parts.length === 1) {
+            firstName = parts[0];
+            lastName = '';
+          } else if (parts.length > 1) {
+            lastName = parts[parts.length - 1];
+            firstName = parts.slice(0, -1).join(' ');
+          }
+        }
+        
+        return {
+          id: doc.id,
+          firstName,
+          lastName,
+          createdAt: data.createdAt,
+          tags: data.tags || [],
+          gender: data.gender,
+          birthdate: data.birthdate
+        };
+      }) as User[];
+      
+      // Sort by last name, then first name
+      loadedUsers.sort((a, b) => {
+        const lastNameCompare = a.lastName.localeCompare(b.lastName);
+        if (lastNameCompare !== 0) return lastNameCompare;
+        return a.firstName.localeCompare(b.firstName);
+      });
+      
       setUsers(loadedUsers);
+      
+      // Extract all unique tags from all users
+      const allTags = Array.from(
+        new Set(loadedUsers.flatMap(user => user.tags || []))
+      ).sort();
+      setAllExistingTags(allTags);
     } catch (error) {
       console.error('Error loading users:', error);
       setError('Failed to load users');
     }
   };
-
   useEffect(() => {
     if (isAuthenticated) {
       loadUsers();
@@ -411,7 +464,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       // Delete all user's results
       const resultsRef = collection(db, 'results');
-      const q = query(resultsRef, where('userName', '==', user.name));
+      const q = query(resultsRef, where('userName', '==', getFullName(user)));
       const querySnapshot = await getDocs(q);
 
       const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
@@ -420,7 +473,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'delete_user',
         userId: user.id,
-        userName: user.name,
+        userName: getFullName(user),
         resultsDeleted: querySnapshot.size
       });
 
@@ -436,20 +489,175 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const handleEditTags = (user: User) => {
     setSelectedUserForTags(user);
     setUserTags(user.tags || []);
-    setNewTag('');
     setEditTagsDialog(true);
   };
 
-  const handleAddTag = () => {
-    const tag = newTag.trim();
-    if (tag && !userTags.includes(tag)) {
-      setUserTags([...userTags, tag]);
-      setNewTag('');
+  const handleEditTag = (tag: string) => {
+    setTagToEdit(tag);
+    setEditTagName(tag);
+    setEditTagDialog(true);
+  };
+
+  const handleSaveTag = async () => {
+    if (!tagToEdit || !editTagName.trim()) return;
+
+    const newName = editTagName.trim();
+    if (newName === tagToEdit) {
+      setEditTagDialog(false);
+      return;
+    }
+
+    try {
+      // Find all users with this tag
+      const usersWithTag = users.filter(user => user.tags && user.tags.includes(tagToEdit));
+      
+      if (usersWithTag.length === 0) {
+        setEditTagDialog(false);
+        return;
+      }
+
+      // Update all users with this tag
+      const updatePromises = usersWithTag.map(user => {
+        const userRef = doc(db, 'users', user.id);
+        const updatedTags = user.tags!.map(tag => tag === tagToEdit ? newName : tag);
+        return updateDoc(userRef, { tags: updatedTags });
+      });
+
+      await Promise.all(updatePromises);
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'rename_tag',
+        oldName: tagToEdit,
+        newName: newName,
+        usersUpdated: usersWithTag.length
+      });
+
+      // Reload users to reflect changes
+      await loadUsers();
+      
+      setEditTagDialog(false);
+      setTagToEdit(null);
+      setEditTagName('');
+    } catch (error) {
+      console.error('Error renaming tag:', error);
+      setError('Failed to rename tag. Please try again.');
     }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setUserTags(userTags.filter(tag => tag !== tagToRemove));
+  const handleDeleteTag = async (tag: string) => {
+    try {
+      // Find all users with this tag
+      const usersWithTag = users.filter(user => user.tags && user.tags.includes(tag));
+      
+      if (usersWithTag.length === 0) {
+        setConfirmDeleteTag(null);
+        return;
+      }
+
+      // Remove tag from all users
+      const updatePromises = usersWithTag.map(user => {
+        const userRef = doc(db, 'users', user.id);
+        const updatedTags = user.tags!.filter(t => t !== tag);
+        return updateDoc(userRef, { tags: updatedTags });
+      });
+
+      await Promise.all(updatePromises);
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'delete_tag',
+        tagName: tag,
+        usersUpdated: usersWithTag.length
+      });
+
+      // Reload users to reflect changes
+      await loadUsers();
+      
+      setConfirmDeleteTag(null);
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      setError('Failed to delete tag. Please try again.');
+    }
+  };
+
+  const handleToggleUserSelection = (userId: string) => {
+    const newSelected = new Set(selectedUsers);
+    if (newSelected.has(userId)) {
+      newSelected.delete(userId);
+    } else {
+      newSelected.add(userId);
+    }
+    setSelectedUsers(newSelected);
+  };
+
+  const handleSelectAllUsers = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.id)));
+    }
+  };
+
+  const handleBulkAddTag = async () => {
+    if (!bulkTagToAdd.trim() || selectedUsers.size === 0) return;
+
+    const tagToAdd = bulkTagToAdd.trim();
+
+    try {
+      const selectedUserObjects = users.filter(user => selectedUsers.has(user.id));
+      const updatePromises = selectedUserObjects.map(user => {
+        const userRef = doc(db, 'users', user.id);
+        const currentTags = user.tags || [];
+        // Only add tag if it doesn't already exist
+        if (!currentTags.includes(tagToAdd)) {
+          const updatedTags = [...currentTags, tagToAdd];
+          return updateDoc(userRef, { tags: updatedTags });
+        }
+        return Promise.resolve();
+      });
+
+      await Promise.all(updatePromises);
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'bulk_add_tag',
+        tagName: tagToAdd,
+        usersUpdated: selectedUsers.size
+      });
+
+      // Reload users to reflect changes
+      await loadUsers();
+      
+      setBulkAddTagDialog(false);
+      setBulkTagToAdd('');
+      setSelectedUsers(new Set());
+    } catch (error) {
+      console.error('Error adding tag to users:', error);
+      setError('Failed to add tag to users. Please try again.');
+    }
+  };
+
+  const handleAddTag = () => {
+    if (!newTagName.trim()) return;
+
+    const tagName = newTagName.trim();
+
+    // Check if tag already exists
+    if (allExistingTags.includes(tagName)) {
+      setError(`Tag "${tagName}" already exists.`);
+      return;
+    }
+
+    // Close the add tag dialog and open bulk add dialog with the tag pre-filled
+    // This allows them to immediately assign it to users
+    setAddTagDialog(false);
+    setBulkTagToAdd(tagName);
+    setNewTagName('');
+    
+    // Switch to Users tab and open bulk add dialog
+    setSelectedTab(1);
+    // Small delay to ensure tab switch completes
+    setTimeout(() => {
+      setBulkAddTagDialog(true);
+    }, 100);
   };
 
   const handleSaveTags = async () => {
@@ -464,7 +672,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'update_user_tags',
         userId: selectedUserForTags.id,
-        userName: selectedUserForTags.name,
+        userName: getFullName(selectedUserForTags),
         tags: userTags
       });
 
@@ -478,7 +686,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       setEditTagsDialog(false);
       setSelectedUserForTags(null);
       setUserTags([]);
-      setNewTag('');
     } catch (error) {
       console.error('Error updating tags:', error);
       setError('Failed to update tags. Please try again.');
@@ -487,7 +694,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditUser = (user: User) => {
     setSelectedUserForEdit(user);
-    setEditUserName(user.name);
+    setEditUserFirstName(user.firstName || '');
+    setEditUserLastName(user.lastName || '');
     setEditUserGender(user.gender || '');
     setEditUserBirthdate(user.birthdate || '');
     setEditUserDialog(true);
@@ -495,22 +703,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleSaveUser = async () => {
     if (!selectedUserForEdit) return;
-
+  
+    const newFirstName = editUserFirstName.trim();
+    const newLastName = editUserLastName.trim();
+    
+    if (!newFirstName) {
+      setError('Please enter a first name');
+      return;
+    }
+  
     try {
       const userRef = doc(db, 'users', selectedUserForEdit.id);
       const updateData: any = {};
-
-      const newName = editUserName.trim();
-      if (newName && newName !== selectedUserForEdit.name) {
-        updateData.name = newName;
+  
+      const oldFullName = getFullName(selectedUserForEdit);
+      const newFullName = `${newFirstName} ${newLastName}`.trim();
+  
+      if (newFirstName !== selectedUserForEdit.firstName || newLastName !== selectedUserForEdit.lastName) {
+        updateData.firstName = newFirstName;
+        updateData.lastName = newLastName;
       }
-
+  
       if (editUserGender) {
         updateData.gender = editUserGender;
       } else {
         updateData.gender = null;
       }
-
+  
       if (editUserBirthdate) {
         const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
         if (dateRegex.test(editUserBirthdate)) {
@@ -522,46 +741,54 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       } else {
         updateData.birthdate = null;
       }
-
+  
       await updateDoc(userRef, updateData);
-
+  
       // If name changed, update all results
-      if (updateData.name) {
+      if (oldFullName !== newFullName) {
         const resultsRef = collection(db, 'results');
-        const q = query(resultsRef, where('userName', '==', selectedUserForEdit.name));
+        const q = query(resultsRef, where('userName', '==', oldFullName));
         const querySnapshot = await getDocs(q);
-
-        const updatePromises = querySnapshot.docs.map(doc => updateDoc(doc.ref, { userName: updateData.name }));
+  
+        const updatePromises = querySnapshot.docs.map(doc => 
+          updateDoc(doc.ref, { 
+            userName: newFullName,
+            userFirstName: newFirstName,
+            userLastName: newLastName
+          })
+        );
         await Promise.all(updatePromises);
       }
-
+  
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'update_user_info',
         userId: selectedUserForEdit.id,
-        userName: selectedUserForEdit.name,
-        newName: updateData.name || undefined
+        userName: oldFullName,
+        newName: newFullName
       });
-
+  
       // Update local state
       setUsers(prevUsers =>
         prevUsers.map(u =>
           u.id === selectedUserForEdit.id ? {
             ...u,
-            name: updateData.name || u.name,
+            firstName: newFirstName,
+            lastName: newLastName,
             gender: editUserGender || undefined,
             birthdate: editUserBirthdate || undefined
           } : u
         )
       );
-
+  
       // Reload results if name changed to ensure consistency in the table
-      if (updateData.name) {
+      if (oldFullName !== newFullName) {
         await loadAllResults();
       }
-
+  
       setEditUserDialog(false);
       setSelectedUserForEdit(null);
-      setEditUserName('');
+      setEditUserFirstName('');
+      setEditUserLastName('');
       setEditUserGender('');
       setEditUserBirthdate('');
     } catch (error) {
@@ -634,6 +861,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Tab label="Activity History" />
           <Tab label="Users" />
           <Tab label="Activities" />
+          <Tab label="Tags" />
         </Tabs>
       </Box>
 
@@ -723,10 +951,39 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       {selectedTab === 1 && (
         <Paper elevation={3} sx={{ borderRadius: 4 }}>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              Users {selectedUsers.size > 0 && `(${selectedUsers.size} selected)`}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              {selectedUsers.size > 0 && (
+                <Button
+                  variant="contained"
+                  startIcon={<TagIcon />}
+                  onClick={() => setBulkAddTagDialog(true)}
+                >
+                  Add Tag to Selected
+                </Button>
+              )}
+              <Button
+                variant="outlined"
+                onClick={handleSelectAllUsers}
+              >
+                {selectedUsers.size === users.length ? 'Deselect All' : 'Select All'}
+              </Button>
+            </Box>
+          </Box>
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      indeterminate={selectedUsers.size > 0 && selectedUsers.size < users.length}
+                      checked={users.length > 0 && selectedUsers.size === users.length}
+                      onChange={handleSelectAllUsers}
+                    />
+                  </TableCell>
                   <TableCell>User Name</TableCell>
                   <TableCell>Gender</TableCell>
                   <TableCell>Birthdate</TableCell>
@@ -737,8 +994,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               </TableHead>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>{user.name}</TableCell>
+                  <TableRow key={user.id} selected={selectedUsers.has(user.id)}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedUsers.has(user.id)}
+                        onChange={() => handleToggleUserSelection(user.id)}
+                      />
+                    </TableCell>
+                    <TableCell>{getFullName(user)}</TableCell>
                     <TableCell>{user.gender || '-'}</TableCell>
                     <TableCell>{user.birthdate || '-'}</TableCell>
                     <TableCell>
@@ -837,6 +1100,58 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </Paper>
       )}
 
+      {selectedTab === 3 && (
+        <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">Manage Tags</Typography>
+            <Button
+              variant="contained"
+              startIcon={<TagIcon />}
+              onClick={() => setAddTagDialog(true)}
+            >
+              Add Tag
+            </Button>
+          </Box>
+          {allExistingTags.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No tags exist yet. Click "Add Tag" to create your first tag.
+            </Typography>
+          ) : (
+            <List>
+              {allExistingTags.map((tag) => {
+                // Count how many users have this tag
+                const userCount = users.filter(user => user.tags && user.tags.includes(tag)).length;
+                return (
+                  <ListItem key={tag}>
+                    <ListItemText 
+                      primary={tag}
+                      secondary={`Used by ${userCount} user${userCount !== 1 ? 's' : ''}`}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        aria-label="edit"
+                        onClick={() => handleEditTag(tag)}
+                        sx={{ mr: 1 }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton
+                        edge="end"
+                        aria-label="delete"
+                        onClick={() => setConfirmDeleteTag(tag)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                );
+              })}
+            </List>
+          )}
+        </Paper>
+      )}
+
       {/* Confirm Delete User Dialog */}
       <Dialog
         open={Boolean(confirmDeleteUser)}
@@ -845,7 +1160,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogTitle>Confirm User Deletion</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to remove {confirmDeleteUser?.name}? This will permanently delete:
+            Are you sure you want to remove {confirmDeleteUser ? getFullName(confirmDeleteUser) : ''}? This will permanently delete:
           </Typography>
           <Box component="ul" sx={{ mt: 1 }}>
             <li>The user's profile</li>
@@ -959,67 +1274,52 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       {/* Edit Tags Dialog */}
       <Dialog
-        open={editTagsDialog}
+        open={editTagsDialog && selectedUserForTags !== null}
         onClose={() => {
           setEditTagsDialog(false);
           setSelectedUserForTags(null);
           setUserTags([]);
-          setNewTag('');
         }}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle>
-          Edit Tags for {selectedUserForTags?.name}
+          Edit Tags for {selectedUserForTags ? getFullName(selectedUserForTags) : ''}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Add tags to group users (e.g., #teamstars2026, #event2026). Tags are case-sensitive.
+            Add tags to group users (e.g., #teamstars2026, #event2026). Tags are case-sensitive. Existing tags are shown as suggestions.
           </Typography>
 
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Autocomplete
+            multiple
+            freeSolo
+            options={allExistingTags}
+            value={userTags}
+            onChange={(event, newValue) => {
+              setUserTags(newValue);
+            }}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => (
+                <Chip
+                  variant="outlined"
+                  label={option}
+                  {...getTagProps({ index })}
+                  key={option}
+                  color="primary"
+                />
+              ))
+            }
+            renderInput={(params) => (
               <TextField
-                fullWidth
-                size="small"
-                label="New Tag"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                placeholder="e.g., #teamstars2026"
+                {...params}
+                label="Tags"
+                placeholder="Type to add tags or select existing"
+                helperText="Select from existing tags or type to create a new one"
               />
-              <Button
-                variant="contained"
-                onClick={handleAddTag}
-                disabled={!newTag.trim() || userTags.includes(newTag.trim())}
-              >
-                Add
-              </Button>
-            </Box>
-
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, minHeight: 60, p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-              {userTags.length > 0 ? (
-                userTags.map((tag) => (
-                  <Chip
-                    key={tag}
-                    label={tag}
-                    onDelete={() => handleRemoveTag(tag)}
-                    color="primary"
-                    variant="outlined"
-                  />
-                ))
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No tags added yet
-                </Typography>
-              )}
-            </Box>
-          </Box>
+            )}
+            sx={{ mb: 2 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button
@@ -1027,7 +1327,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               setEditTagsDialog(false);
               setSelectedUserForTags(null);
               setUserTags([]);
-              setNewTag('');
             }}
           >
             Cancel
@@ -1040,10 +1339,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       {/* Edit User Dialog */}
       <Dialog
-        open={editUserDialog}
+        open={editUserDialog && selectedUserForEdit !== null}
         onClose={() => {
           setEditUserDialog(false);
           setSelectedUserForEdit(null);
+          setEditUserFirstName('');
+          setEditUserLastName('');
           setEditUserGender('');
           setEditUserBirthdate('');
         }}
@@ -1051,7 +1352,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         fullWidth
       >
         <DialogTitle>
-          Edit User: {selectedUserForEdit?.name}
+          Edit User: {selectedUserForEdit ? getFullName(selectedUserForEdit) : ''}
         </DialogTitle>
         <DialogContent>
           {error && (
@@ -1061,11 +1362,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           )}
           <TextField
             fullWidth
-            label="Name"
-            value={editUserName}
-            onChange={(e) => setEditUserName(e.target.value)}
+            label="First Name *"
+            value={editUserFirstName}
+            onChange={(e) => setEditUserFirstName(e.target.value)}
             margin="dense"
             sx={{ mb: 2, mt: 1 }}
+            required
+          />
+          <TextField
+            fullWidth
+            label="Last Name"
+            value={editUserLastName}
+            onChange={(e) => setEditUserLastName(e.target.value)}
+            margin="dense"
+            sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>Gender</InputLabel>
@@ -1110,6 +1420,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             onClick={() => {
               setEditUserDialog(false);
               setSelectedUserForEdit(null);
+              setEditUserFirstName('');
+              setEditUserLastName('');
               setEditUserGender('');
               setEditUserBirthdate('');
               setError(null);
@@ -1152,6 +1464,231 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             disabled={!editActivityName.trim()}
           >
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Tag Dialog */}
+      <Dialog
+        open={editTagDialog}
+        onClose={() => {
+          setEditTagDialog(false);
+          setTagToEdit(null);
+          setEditTagName('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Rename Tag</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Renaming this tag will update all users that have this tag.
+          </Typography>
+          {tagToEdit && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              Current tag: <strong>{tagToEdit}</strong>
+            </Typography>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="New Tag Name"
+            fullWidth
+            value={editTagName}
+            onChange={(e) => setEditTagName(e.target.value)}
+            helperText="This will update all users with this tag"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setEditTagDialog(false);
+              setTagToEdit(null);
+              setEditTagName('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveTag}
+            color="primary"
+            variant="contained"
+            disabled={!editTagName.trim() || editTagName.trim() === tagToEdit}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirm Delete Tag Dialog */}
+      <Dialog
+        open={Boolean(confirmDeleteTag)}
+        onClose={() => setConfirmDeleteTag(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Confirm Tag Deletion</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the tag <strong>"{confirmDeleteTag}"</strong>?
+          </Typography>
+          {confirmDeleteTag && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="textSecondary">
+                This will remove the tag from all users that have it. The following users will be affected:
+              </Typography>
+              <Box component="ul" sx={{ mt: 1, mb: 0 }}>
+                {users
+                  .filter(user => user.tags && user.tags.includes(confirmDeleteTag))
+                  .slice(0, 10)
+                  .map(user => (
+                    <li key={user.id}>{getFullName(user)}</li>
+                  ))}
+                {users.filter(user => user.tags && user.tags.includes(confirmDeleteTag)).length > 10 && (
+                  <li>
+                    <Typography variant="body2" color="text.secondary">
+                      ... and {users.filter(user => user.tags && user.tags.includes(confirmDeleteTag)).length - 10} more
+                    </Typography>
+                  </li>
+                )}
+              </Box>
+            </Box>
+          )}
+          <Typography color="error" sx={{ mt: 2 }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteTag(null)}>Cancel</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => confirmDeleteTag && handleDeleteTag(confirmDeleteTag)}
+          >
+            Delete Tag
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Add Tag Dialog */}
+      <Dialog
+        open={bulkAddTagDialog}
+        onClose={() => {
+          setBulkAddTagDialog(false);
+          setBulkTagToAdd('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Add Tag to Selected Users</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            This will add the tag to {selectedUsers.size} selected user{selectedUsers.size !== 1 ? 's' : ''}. 
+            Existing tags are shown as suggestions.
+          </Typography>
+          <Autocomplete
+            freeSolo
+            options={allExistingTags}
+            value={bulkTagToAdd}
+            onChange={(event, newValue) => {
+              setBulkTagToAdd(newValue || '');
+            }}
+            onInputChange={(event, newInputValue) => {
+              setBulkTagToAdd(newInputValue);
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tag"
+                placeholder="Type to add tag or select existing"
+                helperText="Select from existing tags or type to create a new one"
+                autoFocus
+              />
+            )}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setBulkAddTagDialog(false);
+              setBulkTagToAdd('');
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkAddTag}
+            color="primary"
+            variant="contained"
+            disabled={!bulkTagToAdd.trim() || selectedUsers.size === 0}
+          >
+            Add Tag
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Tag Dialog */}
+      <Dialog
+        open={addTagDialog}
+        onClose={() => {
+          setAddTagDialog(false);
+          setNewTagName('');
+          setError(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create New Tag</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+            Create a new tag name. After creating, you'll be able to assign it to users.
+          </Typography>
+          <Autocomplete
+            freeSolo
+            options={allExistingTags}
+            value={newTagName}
+            onChange={(event, newValue) => {
+              setNewTagName(newValue || '');
+            }}
+            onInputChange={(event, newInputValue) => {
+              setNewTagName(newInputValue);
+            }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Tag Name"
+                placeholder="Enter tag name"
+                helperText="Select from existing tags or type to create a new one"
+                autoFocus
+                error={allExistingTags.includes(newTagName.trim()) && newTagName.trim() !== ''}
+              />
+            )}
+            sx={{ mt: 1 }}
+          />
+          {allExistingTags.includes(newTagName.trim()) && newTagName.trim() !== '' && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              This tag already exists.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setAddTagDialog(false);
+              setNewTagName('');
+              setError(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleAddTag}
+            color="primary"
+            variant="contained"
+            disabled={!newTagName.trim() || allExistingTags.includes(newTagName.trim())}
+          >
+            Create & Assign
           </Button>
         </DialogActions>
       </Dialog>

@@ -120,11 +120,29 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       
       try {
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('name', '==', userNames[0]));
-        const querySnapshot = await getDocs(q);
+        // userName is now in format "firstName lastName"
+        const userNameParts = userNames[0].trim().split(/\s+/);
+        let firstName = '';
+        let lastName = '';
         
-        if (!querySnapshot.empty) {
-          const userData = querySnapshot.docs[0].data();
+        if (userNameParts.length === 1) {
+          firstName = userNameParts[0];
+          lastName = '';
+        } else if (userNameParts.length > 1) {
+          lastName = userNameParts[userNameParts.length - 1];
+          firstName = userNameParts.slice(0, -1).join(' ');
+        }
+        
+        // Fetch all users and filter in memory to avoid composite index requirement
+        // This is acceptable since we're only doing this for a single user lookup
+        const allUsersSnapshot = await getDocs(usersRef);
+        const matchingUser = allUsersSnapshot.docs.find(doc => {
+          const data = doc.data();
+          return data.firstName === firstName && data.lastName === lastName;
+        });
+        
+        if (matchingUser) {
+          const userData = matchingUser.data();
           setUserGender(userData.gender);
           setUserBirthdate(userData.birthdate);
         } else {
@@ -133,6 +151,8 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         }
       } catch (error) {
         console.error('Error loading user data:', error);
+        setUserGender(undefined);
+        setUserBirthdate(undefined);
       }
     };
 
