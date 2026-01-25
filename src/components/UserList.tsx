@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   List,
@@ -79,7 +79,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
       const usersRef = collection(db, 'users');
@@ -194,13 +194,13 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       console.error('Error loading users:', error);
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadUsers();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, loadUsers]);
 
-  const handleRegister = async () => {
+  const handleRegister = useCallback(async () => {
     const firstName = newUserFirstName.trim();
     const lastName = newUserLastName.trim();
     
@@ -270,7 +270,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       console.error('Error registering user:', error);
       setRegistrationError('An error occurred while registering. Please try again.');
     }
-  };
+  }, [newUserFirstName, newUserLastName, newUserGender, newUserBirthdate, newUserTags, setUserName, loadUsers]);
 
   // Get all unique tags from all users
   const allTags = Array.from(
@@ -287,6 +287,153 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
     const matchesTag = !selectedTagFilter || (user.tags ?? []).includes(selectedTagFilter);
     return matchesSearch && matchesTag;
   });
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setRegistrationError(null);
+  }, []);
+
+  const handleTagFilterChange = useCallback((e: SelectChangeEvent) => {
+    setSelectedTagFilter(e.target.value);
+  }, []);
+
+  const handleUserClick = useCallback((e: React.MouseEvent<HTMLDivElement>, user: UserDoc) => {
+    e.preventDefault();
+    const fullName = getFullName(user);
+    const newSelectedUsers = [...selectedUsers];
+    const currentIndex = filteredUsers.findIndex(u => u.id === user.id);
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd+click: toggle selection
+      const isSelected = selectedUsers.includes(fullName);
+      if (isSelected) {
+        const removeIndex = newSelectedUsers.indexOf(fullName);
+        if (removeIndex > -1) {
+          newSelectedUsers.splice(removeIndex, 1);
+        }
+      } else {
+        newSelectedUsers.push(fullName);
+      }
+      setLastSelectedIndex(currentIndex);
+    } else if (e.shiftKey && lastSelectedIndex !== null) {
+      // Shift+click: select range
+      const start = Math.min(lastSelectedIndex, currentIndex);
+      const end = Math.max(lastSelectedIndex, currentIndex);
+      const rangeUsers = filteredUsers.slice(start, end + 1).map(u => getFullName(u));
+      // Merge with existing selection
+      const combined = Array.from(new Set([...newSelectedUsers, ...rangeUsers]));
+      newSelectedUsers.splice(0, newSelectedUsers.length, ...combined);
+    } else {
+      // Regular click: single selection
+      newSelectedUsers.splice(0, newSelectedUsers.length, fullName);
+      setLastSelectedIndex(currentIndex);
+    }
+    
+    // Update the first selected user in UserContext for backward compatibility
+    if (newSelectedUsers.length > 0) {
+      setUserName(newSelectedUsers[0]);
+    }
+    
+    // Only scroll to top when:
+    // 1. Regular click (not Ctrl/Shift) that results in single selection
+    // 2. OR switching from multi-select back to single select
+    const isRegularClick = !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    const isSingleSelect = newSelectedUsers.length === 1;
+    const wasMultiSelect = selectedUsers.length > 1;
+    const switchingToSingle = wasMultiSelect && isSingleSelect;
+    
+    if (isRegularClick && (isSingleSelect || switchingToSingle)) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    onUserSelect(newSelectedUsers);
+  }, [selectedUsers, filteredUsers, lastSelectedIndex, setUserName, onUserSelect]);
+
+  const createUserClickHandler = useCallback((user: UserDoc) => {
+    return (e: React.MouseEvent<HTMLDivElement>) => {
+      handleUserClick(e, user);
+    };
+  }, [handleUserClick]);
+
+  const handleRegisterFromSearch = useCallback(() => {
+    // Try to split search term into firstName and lastName
+    const parts = searchTerm.trim().split(/\s+/);
+    if (parts.length > 0) {
+      setNewUserFirstName(parts[0] ?? '');
+      setNewUserLastName(parts.slice(1).join(' ') || '');
+    }
+    setShowRegisterDialog(true);
+  }, [searchTerm]);
+
+  const handleCloseDialog = useCallback(() => {
+    setShowRegisterDialog(false);
+    setRegistrationError(null);
+    setNewUserGender('');
+    setNewUserBirthdate('');
+    setNewUserFirstName('');
+    setNewUserLastName('');
+    setNewUserTags([]);
+  }, []);
+
+  const handleFirstNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewUserFirstName(e.target.value);
+  }, []);
+
+  const handleLastNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewUserLastName(e.target.value);
+  }, []);
+
+  const handleGenderChange = useCallback((e: SelectChangeEvent) => {
+    setNewUserGender(e.target.value);
+  }, []);
+
+  const handleBirthdateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    // Allow only digits and forward slashes
+    value = value.replace(/[^\d/]/g, '');
+    // Auto-format as user types
+    if (value.length > 2 && value[2] !== '/') {
+      value = value.slice(0, 2) + '/' + value.slice(2);
+    }
+    if (value.length > 5 && value[5] !== '/') {
+      value = value.slice(0, 5) + '/' + value.slice(5);
+    }
+    // Limit to MM/DD/YYYY format (10 characters)
+    if (value.length <= 10) {
+      setNewUserBirthdate(value);
+    }
+  }, []);
+
+  const handleTagsChange = useCallback((_event: unknown, newValue: string[]) => {
+    setNewUserTags(newValue);
+  }, []);
+
+  const renderTags = useCallback((value: string[], getTagProps: (options: { index: number }) => { key: number; className: string; disabled: boolean; 'data-tag-index': number; tabIndex: number; onDelete: (event: unknown) => void }) => (
+    value.map((option, index) => {
+      const { key: _key, ...tagProps } = getTagProps({ index });
+      return (
+        <Chip
+          variant="outlined"
+          label={option}
+          {...tagProps}
+          key={option}
+        />
+      );
+    })
+  ), []);
+
+  const renderInput = useCallback((params: unknown) => (
+    <TextField
+      {...(params as Record<string, unknown>)}
+      label="Tags (Optional)"
+      placeholder="Type to add tags or select existing"
+      helperText="Add tags to group users. Existing tags are shown as suggestions."
+    />
+  ), []);
+
+  const handleRegisterClick = useCallback(() => {
+    void handleRegister();
+  }, [handleRegister]);
 
   return (
     <Paper 
@@ -312,10 +459,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           size="small"
           placeholder="Search by name..."
           value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setRegistrationError(null);
-          }}
+          onChange={handleSearchChange}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -330,7 +474,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           <Select
             value={selectedTagFilter}
             label="Filter by Tag"
-            onChange={(e) => setSelectedTagFilter(e.target.value)}
+            onChange={handleTagFilterChange}
           >
             <MenuItem value="">All Users</MenuItem>
             {allTags.map((tag) => (
@@ -355,55 +499,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
               <ListItem key={user.id} disablePadding>
                 <ListItemButton 
                   selected={isSelected}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const newSelectedUsers = [...selectedUsers];
-                    const currentIndex = filteredUsers.findIndex(u => u.id === user.id);
-                    
-                    if (e.ctrlKey || e.metaKey) {
-                      // Ctrl/Cmd+click: toggle selection
-                      if (isSelected) {
-                        const removeIndex = newSelectedUsers.indexOf(fullName);
-                        if (removeIndex > -1) {
-                          newSelectedUsers.splice(removeIndex, 1);
-                        }
-                      } else {
-                        newSelectedUsers.push(fullName);
-                      }
-                      setLastSelectedIndex(currentIndex);
-                    } else if (e.shiftKey && lastSelectedIndex !== null) {
-                      // Shift+click: select range
-                      const start = Math.min(lastSelectedIndex, currentIndex);
-                      const end = Math.max(lastSelectedIndex, currentIndex);
-                      const rangeUsers = filteredUsers.slice(start, end + 1).map(u => getFullName(u));
-                      // Merge with existing selection
-                      const combined = Array.from(new Set([...newSelectedUsers, ...rangeUsers]));
-                      newSelectedUsers.splice(0, newSelectedUsers.length, ...combined);
-                    } else {
-                      // Regular click: single selection
-                      newSelectedUsers.splice(0, newSelectedUsers.length, fullName);
-                      setLastSelectedIndex(currentIndex);
-                    }
-                    
-                    // Update the first selected user in UserContext for backward compatibility
-                    if (newSelectedUsers.length > 0) {
-                      setUserName(newSelectedUsers[0]);
-                    }
-                    
-                    // Only scroll to top when:
-                    // 1. Regular click (not Ctrl/Shift) that results in single selection
-                    // 2. OR switching from multi-select back to single select
-                    const isRegularClick = !e.ctrlKey && !e.metaKey && !e.shiftKey;
-                    const isSingleSelect = newSelectedUsers.length === 1;
-                    const wasMultiSelect = selectedUsers.length > 1;
-                    const switchingToSingle = wasMultiSelect && isSingleSelect;
-                    
-                    if (isRegularClick && (isSingleSelect || switchingToSingle)) {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                    
-                    onUserSelect(newSelectedUsers);
-                  }}
+                  onClick={createUserClickHandler(user)}
                 >
                   <ListItemText 
                     primary={fullName}
@@ -436,15 +532,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
               <Button
                 variant="contained"
                 fullWidth
-                onClick={() => {
-                  // Try to split search term into firstName and lastName
-                  const parts = searchTerm.trim().split(/\s+/);
-                  if (parts.length > 0) {
-                    setNewUserFirstName(parts[0]);
-                    setNewUserLastName(parts.slice(1).join(' ') || '');
-                  }
-                  setShowRegisterDialog(true);
-                }}
+                onClick={handleRegisterFromSearch}
               >
                 Register &quot;{searchTerm.trim()}&quot;
               </Button>
@@ -463,15 +551,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
 
       <Dialog 
         open={showRegisterDialog} 
-        onClose={() => {
-          setShowRegisterDialog(false);
-          setRegistrationError(null);
-          setNewUserGender('');
-          setNewUserBirthdate('');
-          setNewUserFirstName('');
-          setNewUserLastName('');
-          setNewUserTags([]);
-        }}
+        onClose={handleCloseDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -486,7 +566,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             fullWidth
             label="First Name *"
             value={newUserFirstName}
-            onChange={(e) => setNewUserFirstName(e.target.value)}
+            onChange={handleFirstNameChange}
             sx={{ mb: 2, mt: 1 }}
             required
           />
@@ -494,7 +574,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             fullWidth
             label="Last Name"
             value={newUserLastName}
-            onChange={(e) => setNewUserLastName(e.target.value)}
+            onChange={handleLastNameChange}
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
@@ -502,7 +582,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             <Select
               value={newUserGender}
               label="Gender (Optional)"
-              onChange={(e: SelectChangeEvent) => setNewUserGender(e.target.value)}
+              onChange={handleGenderChange}
             >
               <MenuItem value="">Not specified</MenuItem>
               <MenuItem value="Male">Male</MenuItem>
@@ -515,22 +595,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             label="Birthdate (Optional)"
             placeholder="MM/DD/YYYY"
             value={newUserBirthdate}
-            onChange={(e) => {
-              let value = e.target.value;
-              // Allow only digits and forward slashes
-              value = value.replace(/[^\d/]/g, '');
-              // Auto-format as user types
-              if (value.length > 2 && value[2] !== '/') {
-                value = value.slice(0, 2) + '/' + value.slice(2);
-              }
-              if (value.length > 5 && value[5] !== '/') {
-                value = value.slice(0, 5) + '/' + value.slice(5);
-              }
-              // Limit to MM/DD/YYYY format (10 characters)
-              if (value.length <= 10) {
-                setNewUserBirthdate(value);
-              }
-            }}
+            onChange={handleBirthdateChange}
             helperText="Format: MM/DD/YYYY (e.g., 01/15/2000)"
             sx={{ mb: 2 }}
           />
@@ -539,43 +604,17 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             freeSolo
             options={allExistingTags}
             value={newUserTags}
-            onChange={(event, newValue) => {
-              setNewUserTags(newValue);
-            }}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip
-                  variant="outlined"
-                  label={option}
-                  {...getTagProps({ index })}
-                  key={option}
-                />
-              ))
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Tags (Optional)"
-                placeholder="Type to add tags or select existing"
-                helperText="Add tags to group users. Existing tags are shown as suggestions."
-              />
-            )}
+            onChange={handleTagsChange}
+            renderTags={renderTags}
+            renderInput={renderInput}
             sx={{ mb: 2 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setShowRegisterDialog(false);
-            setRegistrationError(null);
-            setNewUserGender('');
-            setNewUserBirthdate('');
-            setNewUserFirstName('');
-            setNewUserLastName('');
-            setNewUserTags([]);
-          }}>
+          <Button onClick={handleCloseDialog}>
             Cancel
           </Button>
-          <Button onClick={() => { void handleRegister(); }} variant="contained">
+          <Button onClick={handleRegisterClick} variant="contained">
             Register
           </Button>
         </DialogActions>
