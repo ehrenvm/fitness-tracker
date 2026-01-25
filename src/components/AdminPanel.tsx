@@ -23,7 +23,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
-  Divider,
   Tab,
   Tabs,
   Chip,
@@ -35,7 +34,7 @@ import {
   SelectChangeEvent,
   Checkbox
 } from '@mui/material';
-import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, Person as PersonIcon, LocalOffer as TagIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon } from '@mui/icons-material';
 import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
@@ -278,11 +277,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setResults([]);
-    setError(null);
-  };
 
   const handleAddActivity = async () => {
     if (!newActivity.trim()) return;
@@ -714,7 +708,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   
     try {
       const userRef = doc(db, 'users', selectedUserForEdit.id);
-      const updateData: any = {};
+      const updateData: Partial<User> & { gender?: string; birthdate?: string } = {};
   
       const oldFullName = getFullName(selectedUserForEdit);
       const newFullName = `${newFirstName} ${newLastName}`.trim();
@@ -727,7 +721,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       if (editUserGender) {
         updateData.gender = editUserGender;
       } else {
-        updateData.gender = null;
+        updateData.gender = undefined;
       }
   
       if (editUserBirthdate) {
@@ -739,7 +733,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           return;
         }
       } else {
-        updateData.birthdate = null;
+        updateData.birthdate = undefined;
       }
   
       await updateDoc(userRef, updateData);

@@ -27,7 +27,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import { collection, getDocs, query, orderBy, where, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../firebase';
 import { useUser } from '../contexts/UserContext';
 
@@ -54,7 +54,7 @@ const getFullName = (user: UserDoc): string => {
 };
 
 const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUsers, refreshTrigger }) => {
-  const { userName, setUserName } = useUser();
+  const { setUserName } = useUser();
   const [users, setUsers] = useState<UserDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -212,7 +212,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         return;
       }
 
-      const newUser: any = {
+      const newUser: Omit<UserDoc, 'id'> = {
         firstName,
         lastName,
         createdAt: new Date().toISOString(),
@@ -335,7 +335,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         </Box>
       ) : (
         <List sx={{ overflow: 'auto', flexGrow: 1 }}>
-          {filteredUsers.map((user, index) => {
+          {filteredUsers.map((user) => {
             const fullName = getFullName(user);
             const isSelected = selectedUsers.includes(fullName);
             return (

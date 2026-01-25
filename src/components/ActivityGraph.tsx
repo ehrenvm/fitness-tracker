@@ -2,17 +2,13 @@ import React, { useState, useMemo } from 'react';
 import {
   LineChart,
   Line,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  TooltipProps
 } from 'recharts';
 import { 
   Box, 
@@ -97,7 +93,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
   const [useStatisticalView, setUseStatisticalView] = useState(false);
 
   // Process data for the graph
-  const { chartData, activityRanges, userActivityCombinations } = useMemo(() => {
+  const { chartData, userActivityCombinations } = useMemo(() => {
     // Get all unique users from results
     const uniqueUsers = Array.from(new Set(results.map(r => r.userName))).sort();
     const hasMultipleUsers = uniqueUsers.length > 1;
@@ -206,7 +202,6 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
 
     return { 
       chartData: data as ChartDataPoint[], 
-      activityRanges: ranges,
       userActivityCombinations: combinations
     };
   }, [results, selectedActivities]);
@@ -339,7 +334,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     setUseStatisticalView(!useStatisticalView);
   };
 
-  const statisticalTooltip = ({ active, payload, label }: any) => {
+  const statisticalTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
         <Paper sx={{ p: 2 }}>
@@ -347,9 +342,9 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
             {label}
           </Typography>
           {selectedActivities.map(activity => {
-            const minEntry = payload.find((p: any) => p.dataKey === `${activity}_min`);
-            const medianEntry = payload.find((p: any) => p.dataKey === `${activity}_median`);
-            const maxEntry = payload.find((p: any) => p.dataKey === `${activity}_max`);
+            const minEntry = payload?.find((p) => String(p.dataKey) === `${activity}_min`);
+            const medianEntry = payload?.find((p) => String(p.dataKey) === `${activity}_median`);
+            const maxEntry = payload?.find((p) => String(p.dataKey) === `${activity}_max`);
             
             if (!minEntry && !medianEntry && !maxEntry) {
               return null;
@@ -378,18 +373,19 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     return null;
   };
 
-  const customTooltip = ({ active, payload, label }: any) => {
+  const customTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
         <Paper sx={{ p: 2 }}>
           <Typography variant="body2" color="textSecondary">
             {label}
           </Typography>
-          {payload.map((entry: any) => {
-            const isNormalizedValue = entry.dataKey.endsWith('_normalized');
-            let baseKey = isNormalizedValue 
-              ? entry.dataKey.replace('_normalized', '')
-              : entry.dataKey.replace('_original', '');
+          {payload.map((entry) => {
+            const dataKey = String(entry.dataKey || '');
+            const isNormalizedValue = dataKey.endsWith('_normalized');
+            const baseKey = isNormalizedValue 
+              ? dataKey.replace('_normalized', '')
+              : dataKey.replace('_original', '');
             
             // Check if this is a user-specific key (format: activity_userName)
             const userMatch = baseKey.match(/^(.+)_(.+)$/);
@@ -422,7 +418,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
               ? (userName ? `${activityName}_${userName}_original` : `${activityName}_original`)
               : null;
             const originalValue = isNormalized && originalKey
-              ? payload.find((p: any) => p.dataKey === originalKey)?.value
+              ? payload.find((p) => String(p.dataKey) === originalKey)?.value
               : null;
 
             const displayName = userName ? `${activityName} (${userName})` : activityName;

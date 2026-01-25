@@ -17,8 +17,8 @@ const Login: React.FC = () => {
     try {
       await login(email, password);
       navigate('/');
-    } catch (error: any) {
-      setError(error.message || 'Failed to authenticate');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to authenticate');
     }
   };
 

@@ -138,7 +138,7 @@ const ActivityLeaderboard: React.FC = () => {
       return groups;
     }, {} as { [key: string]: Result[] });
 
-    return Object.entries(userGroups).map(([userName, userResults]) => {
+    return Object.entries(userGroups).map(([, userResults]) => {
       let selectedResult: Result;
       
       switch (viewMode) {
@@ -170,7 +170,7 @@ const ActivityLeaderboard: React.FC = () => {
     setSelectedActivity(event.target.value);
   };
 
-  const handleViewModeChange = (event: any, newMode: ViewMode | null) => {
+  const handleViewModeChange = (_event: React.MouseEvent<HTMLElement>, newMode: ViewMode | null) => {
     if (newMode !== null) {
       setViewMode(newMode);
     }

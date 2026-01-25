@@ -71,7 +71,7 @@ try {
 export { db, auth, analytics };
 
 // Analytics event logging helper
-export const logAnalyticsEvent = (eventName: string, eventParams?: { [key: string]: any }) => {
+export const logAnalyticsEvent = (eventName: string, eventParams?: { [key: string]: unknown }) => {
   try {
     logEvent(analytics, eventName, eventParams);
   } catch (error) {

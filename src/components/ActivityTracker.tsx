@@ -30,6 +30,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import CompoundValueInput from './CompoundValueInput';
 
 // Default activities list (will be updated from Firebase)
+// eslint-disable-next-line react-refresh/only-export-components
 export const ACTIVITIES = [
   'Push-ups',
   'Pull-ups',
