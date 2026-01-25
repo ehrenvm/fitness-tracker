@@ -75,7 +75,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'error',
       // React best practices
       'react/jsx-key': ['error', { checkFragmentShorthand: true }],
-      'react/no-array-index-key': 'warn',
+      'react/no-array-index-key': 'error',
       'react/prop-types': 'off', // Using TypeScript for prop validation
       'react/react-in-jsx-scope': 'off', // Not needed with React 17+
       // React performance
