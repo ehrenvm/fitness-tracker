@@ -501,7 +501,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           </>
         )}
       </Stack>
-      <Box sx={{ width: '100%', height: 350, overflow: 'auto' }}>
+      <Box sx={{ width: '100%', height: 350, overflow: 'hidden' }}>
         {showStatisticalView ? (
           statisticalData.length > 0 ? (
             (() => {
@@ -688,7 +688,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
 
   return (
     <>
-      <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
+      <Paper elevation={3} sx={{ p: 3, mt: 2, borderRadius: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
           <IconButton onClick={handleFullscreenToggle} size="small">
             <Fullscreen />
@@ -723,7 +723,8 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           display: 'flex', 
           flexDirection: 'column',
           height: 'calc(100vh - 64px)',
-          p: 3
+          p: 3,
+          overflow: 'hidden'
         }}>
           {graphContent}
         </DialogContent>

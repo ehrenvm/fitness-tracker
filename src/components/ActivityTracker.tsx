@@ -435,85 +435,19 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         </Typography>
 
         <Grid container spacing={3}>
-          {/* Left Column - Activity Entry and Query */}
-          <Grid item xs={12} md={4}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  Add New Activity
-                </Typography>
-                <form onSubmit={handleFormSubmit}>
-                  <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Activity</InputLabel>
-                    <Select
-                      value={selectedActivity}
-                      onChange={handleActivityChange}
-                      label="Activity"
-                    >
-                      {activities.slice().sort((a, b) => a.localeCompare(b)).map((act) => (
-                        <MenuItem key={act} value={act}>
-                          {act}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-
-                  {selectedActivity ? (
-                    isCompoundUnit(selectedActivity) ? (
-                      <CompoundValueInput
-                        activity={selectedActivity}
-                        value={value}
-                        onChange={setValue}
-                      />
-                    ) : (
-                      <TextField
-                        type="number"
-                        label="Value"
-                        value={value.value1}
-                        onChange={handleValueChange}
-                        fullWidth
-                        sx={{ mb: 2 }}
-                      />
-                    )
-                  ) : null}
-
-                  {/* Date input for entry date */}
-                  <TextField
-                    label="Date"
-                    type="date"
-                    value={entryDate}
-                    onChange={handleEntryDateChange}
-                    fullWidth
-                    sx={{ mb: 2 }}
-                    InputLabelProps={{ shrink: true }}
-                  />
-
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    disabled={!selectedActivity || !value.value1}
-                  >
-                    Track Activity
-                  </Button>
-                </form>
-              </Paper>
-
-              <Paper elevation={3} sx={{ p: 3, mt: 2, borderRadius: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  Filter Activities
-                </Typography>
-                
-                <FormControl fullWidth>
-                  <InputLabel>Select Activities</InputLabel>
+          {/* Top Row - Add Activity and Filter Activities */}
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Add New Activity
+              </Typography>
+              <form onSubmit={handleFormSubmit}>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Activity</InputLabel>
                   <Select
-                    multiple
-                    value={selectedActivities}
-                    onChange={handleSelectedActivitiesChange}
-                    input={<OutlinedInput label="Select Activities" />}
-                    renderValue={renderSelectedActivities}
-                    MenuProps={MenuProps}
+                    value={selectedActivity}
+                    onChange={handleActivityChange}
+                    label="Activity"
                   >
                     {activities.slice().sort((a, b) => a.localeCompare(b)).map((act) => (
                       <MenuItem key={act} value={act}>
@@ -522,13 +456,87 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                     ))}
                   </Select>
                 </FormControl>
-              </Paper>
-            </Box>
+
+                {selectedActivity ? (
+                  isCompoundUnit(selectedActivity) ? (
+                    <CompoundValueInput
+                      activity={selectedActivity}
+                      value={value}
+                      onChange={setValue}
+                    />
+                  ) : (
+                    <TextField
+                      type="number"
+                      label="Value"
+                      value={value.value1}
+                      onChange={handleValueChange}
+                      fullWidth
+                      sx={{ mb: 2 }}
+                    />
+                  )
+                ) : null}
+
+                {/* Date input for entry date */}
+                <TextField
+                  label="Date"
+                  type="date"
+                  value={entryDate}
+                  onChange={handleEntryDateChange}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                  InputLabelProps={{ shrink: true }}
+                />
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  disabled={!selectedActivity || !value.value1}
+                >
+                  Track Activity
+                </Button>
+              </form>
+            </Paper>
           </Grid>
 
-          {/* Right Column - Activity History */}
-          <Grid item xs={12} md={8}>
-            <Paper elevation={3} sx={{ p: 3, height: '100%', borderRadius: 4 }}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
+              <Typography variant="h6" gutterBottom>
+                Filter Activities
+              </Typography>
+              
+              <FormControl fullWidth>
+                <InputLabel>Select Activities</InputLabel>
+                <Select
+                  multiple
+                  value={selectedActivities}
+                  onChange={handleSelectedActivitiesChange}
+                  input={<OutlinedInput label="Select Activities" />}
+                  renderValue={renderSelectedActivities}
+                  MenuProps={MenuProps}
+                >
+                  {activities.slice().sort((a, b) => a.localeCompare(b)).map((act) => (
+                    <MenuItem key={act} value={act}>
+                      {act}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Paper>
+          </Grid>
+
+          {/* Chart - Full Width */}
+          <Grid item xs={12}>
+            <ActivityGraph 
+              results={filteredResults}
+              selectedActivities={selectedActivities}
+            />
+          </Grid>
+
+          {/* Activity History - Full Width */}
+          <Grid item xs={12}>
+            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
                   Activity History
@@ -560,11 +568,6 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   </ToggleButtonGroup>
                 </Box>
               </Box>
-
-              <ActivityGraph 
-                results={filteredResults}
-                selectedActivities={selectedActivities}
-              />
 
               {filteredResults.length === 0 ? (
                 <Alert severity="info">No activities found</Alert>
