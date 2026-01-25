@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { ThemeProvider } from '@mui/material/styles';
 import { Box, Container, CssBaseline } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { UserProvider } from './contexts/UserContext';
 import UserList from './components/UserList';
 import AdminPanel from './components/AdminPanel';
 import ActivityTracker from './components/ActivityTracker';
@@ -66,67 +67,69 @@ const App: React.FC = () => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <BackgroundContainer>
-          <ContentContainer>
-            <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-              {location.pathname !== '/login' && <AppHeader onAdminClick={handleAdminClick} />}
-              <Box sx={{ flex: 1 }}>
-                <Routes>
-                  <Route path="/login" element={<Login />} />
+        <UserProvider>
+          <BackgroundContainer>
+            <ContentContainer>
+              <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+                {location.pathname !== '/login' && <AppHeader onAdminClick={handleAdminClick} />}
+                <Box sx={{ flex: 1 }}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
 
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <Container maxWidth="lg">
-                        <Box sx={{ display: 'flex', gap: 3 }}>
-                          <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
-                            <UserList
-                              onUserSelect={handleUserSelect}
-                              selectedUsers={selectedUsers}
-                              refreshTrigger={refreshTrigger}
-                              onAdminClick={handleAdminClick}
-                            />
+                    <Route path="/" element={
+                      <ProtectedRoute>
+                        <Container maxWidth="lg">
+                          <Box sx={{ display: 'flex', gap: 3 }}>
+                            <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
+                              <UserList
+                                onUserSelect={handleUserSelect}
+                                selectedUsers={selectedUsers}
+                                refreshTrigger={refreshTrigger}
+                                onAdminClick={handleAdminClick}
+                              />
+                            </Box>
+                            <Box sx={{ width: '75%', borderRadius: 4 }}
+                              className={highlight ? 'highlight-activity-tracker' : ''}
+                            >
+                              {selectedUsers.length > 0 ? (
+                                <ActivityTracker userNames={selectedUsers} />
+                              ) : (
+                                <Box sx={{
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  height: '100%',
+                                  p: 3
+                                }}>
+                                  <Typography variant="h6" color="textSecondary">
+                                    Select a user to view their activity tracker
+                                  </Typography>
+                                </Box>
+                              )}
+                            </Box>
                           </Box>
-                          <Box sx={{ width: '75%', borderRadius: 4 }}
-                            className={highlight ? 'highlight-activity-tracker' : ''}
-                          >
-                            {selectedUsers.length > 0 ? (
-                              <ActivityTracker userNames={selectedUsers} />
-                            ) : (
-                              <Box sx={{
-                                display: 'flex',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                height: '100%',
-                                p: 3
-                              }}>
-                                <Typography variant="h6" color="textSecondary">
-                                  Select a user to view their activity tracker
-                                </Typography>
-                              </Box>
-                            )}
-                          </Box>
-                        </Box>
-                      </Container>
-                    </ProtectedRoute>
-                  } />
+                        </Container>
+                      </ProtectedRoute>
+                    } />
 
-                  <Route path="/admin" element={
-                    <ProtectedRoute>
-                      <AdminRoute>
-                        <AdminPanel
-                          onBack={handleBackClick}
-                          onUserDeleted={handleUserDeleted}
-                        />
-                      </AdminRoute>
-                    </ProtectedRoute>
-                  } />
+                    <Route path="/admin" element={
+                      <ProtectedRoute>
+                        <AdminRoute>
+                          <AdminPanel
+                            onBack={handleBackClick}
+                            onUserDeleted={handleUserDeleted}
+                          />
+                        </AdminRoute>
+                      </ProtectedRoute>
+                    } />
 
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </Box>
               </Box>
-            </Box>
-          </ContentContainer>
-        </BackgroundContainer>
+            </ContentContainer>
+          </BackgroundContainer>
+        </UserProvider>
       </AuthProvider>
     </ThemeProvider>
   );
