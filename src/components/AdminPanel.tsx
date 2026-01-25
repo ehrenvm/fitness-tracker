@@ -1095,7 +1095,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   <IconButton
                     edge="end"
                     aria-label="delete"
-                    onClick={() => handleDeleteActivity(activity)}
+                    onClick={() => { void handleDeleteActivity(activity); }}
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -1243,7 +1243,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   <IconButton
                     edge="end"
                     aria-label="delete"
-                    onClick={() => handleDeleteActivity(activity)}
+                    onClick={() => { void handleDeleteActivity(activity); }}
                   >
                     <DeleteIcon />
                   </IconButton>

@@ -53,6 +53,8 @@ export default tseslint.config(
       '@typescript-eslint/prefer-optional-chain': 'error',
       // Promise/async safety
       '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
       // React best practices
       'react/jsx-key': ['error', { checkFragmentShorthand: true }],
       'react/no-array-index-key': 'warn',

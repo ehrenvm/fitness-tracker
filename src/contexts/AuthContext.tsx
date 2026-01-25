@@ -36,17 +36,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       
       if (user) {
-        try {
-          const token = await user.getIdTokenResult();
-          setIsAdmin(!!token.claims.admin);
-        } catch (error) {
-          console.error('Error checking admin status:', error);
-          setIsAdmin(false);
-        }
+        void (async () => {
+          try {
+            const token = await user.getIdTokenResult();
+            setIsAdmin(!!token.claims.admin);
+          } catch (error) {
+            console.error('Error checking admin status:', error);
+            setIsAdmin(false);
+          }
+        })();
       } else {
         setIsAdmin(false);
       }

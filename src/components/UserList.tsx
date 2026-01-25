@@ -574,7 +574,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           }}>
             Cancel
           </Button>
-          <Button onClick={handleRegister} variant="contained">
+          <Button onClick={() => { void handleRegister(); }} variant="contained">
             Register
           </Button>
         </DialogActions>
