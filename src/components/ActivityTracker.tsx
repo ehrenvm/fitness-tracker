@@ -231,12 +231,12 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     void loadResults();
   }, [loadResults]);
 
-  const handleActivityChange = (event: SelectChangeEvent) => {
+  const handleActivityChange = useCallback((event: SelectChangeEvent) => {
     setSelectedActivity(event.target.value);
     setValue({ value1: '', value2: '' }); // Reset both values when activity changes
-  };
+  }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !selectedActivity) return;
 
@@ -321,7 +321,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       setError('Failed to add result. Please try again.');
       setTimeout(() => setError(null), 3000);
     }
-  };
+  }, [user, selectedActivity, value, entryDate, userNames, results, loadResults]);
 
   const handleCheckActivity = useCallback(() => {
     let filtered = [...results];
@@ -338,7 +338,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     handleCheckActivity();
   }, [handleCheckActivity]);
 
-  const handleSortChange = (field: SortField) => {
+  const handleSortChange = useCallback((field: SortField) => {
     if (field === sortField) {
       // If clicking the same field, toggle direction
       setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
@@ -347,7 +347,40 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       setSortField(field);
       setSortDirection('desc');
     }
-  };
+  }, [sortField]);
+
+  const handleSortDate = useCallback(() => {
+    handleSortChange('date');
+  }, [handleSortChange]);
+
+  const handleSortValue = useCallback(() => {
+    handleSortChange('value');
+  }, [handleSortChange]);
+
+  const handleValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setValue({ value1: e.target.value, value2: '' });
+  }, []);
+
+  const handleEntryDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEntryDate(e.target.value);
+  }, []);
+
+  const handleSelectedActivitiesChange = useCallback((e: SelectChangeEvent<string[]>) => {
+    setSelectedActivities(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value);
+  }, []);
+
+  const handleFormSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSubmit(e);
+  }, [handleSubmit]);
+
+  const renderSelectedActivities = useCallback((selected: string[]) => (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+      {selected.sort((a, b) => a.localeCompare(b)).map((value) => (
+        <Chip key={value} label={value} />
+      ))}
+    </Box>
+  ), []);
 
   return (
     <Container maxWidth="lg">
@@ -406,7 +439,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                 <Typography variant="h6" gutterBottom>
                   Add New Activity
                 </Typography>
-                <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(e); }}>
+                <form onSubmit={handleFormSubmit}>
                   <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel>Activity</InputLabel>
                     <Select
@@ -434,7 +467,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                         type="number"
                         label="Value"
                         value={value.value1}
-                        onChange={(e) => setValue({ value1: e.target.value, value2: '' })}
+                        onChange={handleValueChange}
                         fullWidth
                         sx={{ mb: 2 }}
                       />
@@ -446,7 +479,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                     label="Date"
                     type="date"
                     value={entryDate}
-                    onChange={(e) => setEntryDate(e.target.value)}
+                    onChange={handleEntryDateChange}
                     fullWidth
                     sx={{ mb: 2 }}
                     InputLabelProps={{ shrink: true }}
@@ -474,15 +507,9 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   <Select
                     multiple
                     value={selectedActivities}
-                    onChange={(e) => setSelectedActivities(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                    onChange={handleSelectedActivitiesChange}
                     input={<OutlinedInput label="Select Activities" />}
-                    renderValue={(selected) => (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {selected.sort((a, b) => a.localeCompare(b)).map((value) => (
-                          <Chip key={value} label={value} />
-                        ))}
-                      </Box>
-                    )}
+                    renderValue={renderSelectedActivities}
                     MenuProps={MenuProps}
                   >
                     {activities.slice().sort((a, b) => a.localeCompare(b)).map((act) => (
@@ -511,21 +538,21 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   >
                     <ToggleButton 
                       value="date"
-                      onClick={() => handleSortChange('date')}
+                      onClick={handleSortDate}
                       sx={{ textTransform: 'none' }}
                     >
-                      Date {sortField === 'date' && (
+                      Date {sortField === 'date' ? (
                         sortDirection === 'desc' ? <ArrowDownward /> : <ArrowUpward />
-                      )}
+                      ) : null}
                     </ToggleButton>
                     <ToggleButton 
                       value="value"
-                      onClick={() => handleSortChange('value')}
+                      onClick={handleSortValue}
                       sx={{ textTransform: 'none' }}
                     >
-                      Value {sortField === 'value' && (
+                      Value {sortField === 'value' ? (
                         sortDirection === 'desc' ? <ArrowDownward /> : <ArrowUpward />
-                      )}
+                      ) : null}
                     </ToggleButton>
                   </ToggleButtonGroup>
                 </Box>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -115,11 +115,13 @@ const ActivityLeaderboard: React.FC = () => {
     }
   }, [selectedActivity]);
 
-  const handleRequestSort = (property: SortableColumn) => {
-    const isAsc = orderBy === property && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
+  const handleRequestSort = useCallback((property: SortableColumn) => {
+    setOrder(prevOrder => {
+      const isAsc = orderBy === property && prevOrder === 'asc';
+      return isAsc ? 'desc' : 'asc';
+    });
     setOrderBy(property);
-  };
+  }, [orderBy]);
 
   const processResults = (results: Result[]): ProcessedResult[] => {
     if (!selectedActivity) return [];
@@ -171,15 +173,27 @@ const ActivityLeaderboard: React.FC = () => {
 
   const sortedResults = processResults(results).sort(getComparator(order, orderBy));
 
-  const handleActivityChange = (event: SelectChangeEvent) => {
+  const handleActivityChange = useCallback((event: SelectChangeEvent) => {
     setSelectedActivity(event.target.value);
-  };
+  }, []);
 
-  const handleViewModeChange = (_event: React.MouseEvent<HTMLElement>, newMode: ViewMode | null) => {
+  const handleViewModeChange = useCallback((_event: React.MouseEvent<HTMLElement>, newMode: ViewMode | null) => {
     if (newMode !== null) {
       setViewMode(newMode);
     }
-  };
+  }, []);
+
+  const handleSortUserName = useCallback(() => {
+    handleRequestSort('userName');
+  }, [handleRequestSort]);
+
+  const handleSortValue = useCallback(() => {
+    handleRequestSort('value');
+  }, [handleRequestSort]);
+
+  const handleSortDate = useCallback(() => {
+    handleRequestSort('date');
+  }, [handleRequestSort]);
 
   return (
     <Container maxWidth="lg">
@@ -238,7 +252,7 @@ const ActivityLeaderboard: React.FC = () => {
                     <TableSortLabel
                       active={orderBy === 'userName'}
                       direction={orderBy === 'userName' ? order : 'asc'}
-                      onClick={() => handleRequestSort('userName')}
+                      onClick={handleSortUserName}
                     >
                       User
                     </TableSortLabel>
@@ -247,7 +261,7 @@ const ActivityLeaderboard: React.FC = () => {
                     <TableSortLabel
                       active={orderBy === 'value'}
                       direction={orderBy === 'value' ? order : 'asc'}
-                      onClick={() => handleRequestSort('value')}
+                      onClick={handleSortValue}
                     >
                       Value
                     </TableSortLabel>
@@ -256,7 +270,7 @@ const ActivityLeaderboard: React.FC = () => {
                     <TableSortLabel
                       active={orderBy === 'date'}
                       direction={orderBy === 'date' ? order : 'asc'}
-                      onClick={() => handleRequestSort('date')}
+                      onClick={handleSortDate}
                     >
                       Date
                     </TableSortLabel>

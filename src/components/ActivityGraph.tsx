@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   LineChart,
   Line,
@@ -327,23 +327,23 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     return statsData;
   }, [results, selectedActivities, useStatisticalView]);
 
-  const handleFullscreenToggle = () => {
-    setIsFullscreen(!isFullscreen);
-  };
+  const handleFullscreenToggle = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+  }, []);
 
-  const handleNormalizeToggle = () => {
-    setIsNormalized(!isNormalized);
-  };
+  const handleNormalizeToggle = useCallback(() => {
+    setIsNormalized(prev => !prev);
+  }, []);
 
-  const handleCurveToggle = () => {
-    setIsCurved(!isCurved);
-  };
+  const handleCurveToggle = useCallback(() => {
+    setIsCurved(prev => !prev);
+  }, []);
 
-  const handleStatisticalViewToggle = () => {
-    setUseStatisticalView(!useStatisticalView);
-  };
+  const handleStatisticalViewToggle = useCallback(() => {
+    setUseStatisticalView(prev => !prev);
+  }, []);
 
-  const statisticalTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+  const statisticalTooltip = useCallback(({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload?.length) {
       return (
         <Paper sx={{ p: 2 }}>
@@ -381,9 +381,9 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
       );
     }
     return null;
-  };
+  }, [selectedActivities]);
 
-  const customTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+  const customTooltip = useCallback(({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload?.length) {
       return (
         <Paper sx={{ p: 2 }}>
@@ -449,7 +449,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
       );
     }
     return null;
-  };
+  }, [isNormalized, results]);
 
   // Check if multiple users are selected
   const uniqueUsers = Array.from(new Set(results.map(r => r.userName))).sort();
