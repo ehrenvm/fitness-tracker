@@ -464,7 +464,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
       p: 2 
     }}>
       <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap">
-        {hasMultipleUsers && (
+        {hasMultipleUsers ? (
           <FormControlLabel
             control={
               <Switch
@@ -475,7 +475,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
             }
             label="Statistical View (Min/Median/Max)"
           />
-        )}
+        ) : null}
         {!showStatisticalView && (
           <>
             <FormControlLabel

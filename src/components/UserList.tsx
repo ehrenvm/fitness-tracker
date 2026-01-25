@@ -477,11 +477,11 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       >
         <DialogTitle>Register New User</DialogTitle>
         <DialogContent>
-          {registrationError && (
+          {registrationError ? (
             <Alert severity="error" sx={{ mb: 2 }}>
               {registrationError}
             </Alert>
-          )}
+          ) : null}
           <TextField
             fullWidth
             label="First Name *"

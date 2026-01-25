@@ -422,7 +422,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                     </Select>
                   </FormControl>
 
-                  {selectedActivity && (
+                  {selectedActivity ? (
                     isCompoundUnit(selectedActivity) ? (
                       <CompoundValueInput
                         activity={selectedActivity}
@@ -439,7 +439,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                         sx={{ mb: 2 }}
                       />
                     )
-                  )}
+                  ) : null}
 
                   {/* Date input for entry date */}
                   <TextField
@@ -579,17 +579,17 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
           </Grid>
         </Grid>
 
-        {error && (
+        {error ? (
           <Alert severity="error" sx={{ mt: 2 }}>
             {error}
           </Alert>
-        )}
+        ) : null}
         
-        {success && (
+        {success ? (
           <Alert severity="success" sx={{ mt: 2 }}>
             Activity tracked successfully!
           </Alert>
-        )}
+        ) : null}
       </Box>
     </Container>
   );

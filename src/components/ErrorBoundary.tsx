@@ -48,7 +48,7 @@ class ErrorBoundary extends Component<Props, State> {
             <Typography variant="body1" sx={{ mb: 2, mt: 2 }}>
               {this.state.error?.message ?? 'An unexpected error occurred'}
             </Typography>
-            {this.state.error?.stack && (
+            {this.state.error?.stack ? (
               <Box
                 component="pre"
                 sx={{
@@ -62,7 +62,7 @@ class ErrorBoundary extends Component<Props, State> {
               >
                 {this.state.error.stack}
               </Box>
-            )}
+            ) : null}
             <Button variant="contained" onClick={this.handleReload}>
               Reload Page
             </Button>

@@ -839,11 +839,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             >
               Login
             </Button>
-            {error && (
+            {error ? (
               <Alert severity="error" sx={{ mt: 2 }}>
                 {error}
               </Alert>
-            )}
+            ) : null}
           </Box>
         </Box>
       </Container>
@@ -861,11 +861,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </Typography>
       </Box>
 
-      {error && (
+      {error ? (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-      )}
+      ) : null}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={selectedTab} onChange={(_, newValue: number) => setSelectedTab(newValue)}>
@@ -1285,7 +1285,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       {/* Edit Tags Dialog */}
       <Dialog
-        open={editTagsDialog && selectedUserForTags !== null}
+        open={editTagsDialog ? selectedUserForTags !== null : false}
         onClose={() => {
           setEditTagsDialog(false);
           setSelectedUserForTags(null);
@@ -1350,7 +1350,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
       {/* Edit User Dialog */}
       <Dialog
-        open={editUserDialog && selectedUserForEdit !== null}
+        open={editUserDialog ? selectedUserForEdit !== null : false}
         onClose={() => {
           setEditUserDialog(false);
           setSelectedUserForEdit(null);
@@ -1366,11 +1366,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           Edit User: {selectedUserForEdit ? getFullName(selectedUserForEdit) : ''}
         </DialogTitle>
         <DialogContent>
-          {error && (
+          {error ? (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
             </Alert>
-          )}
+          ) : null}
           <TextField
             fullWidth
             label="First Name *"
@@ -1495,11 +1495,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             Renaming this tag will update all users that have this tag.
           </Typography>
-          {tagToEdit && (
+          {tagToEdit ? (
             <Typography variant="body2" sx={{ mb: 2 }}>
               Current tag: <strong>{tagToEdit}</strong>
             </Typography>
-          )}
+          ) : null}
           <TextField
             autoFocus
             margin="dense"
@@ -1543,7 +1543,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Typography>
             Are you sure you want to delete the tag <strong>&quot;{confirmDeleteTag}&quot;</strong>?
           </Typography>
-          {confirmDeleteTag && (
+          {confirmDeleteTag ? (
             <Box sx={{ mt: 2 }}>
               <Typography variant="body2" color="textSecondary">
                 This will remove the tag from all users that have it. The following users will be affected:
@@ -1564,7 +1564,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 )}
               </Box>
             </Box>
-          )}
+          ) : null}
           <Typography color="error" sx={{ mt: 2 }}>
             This action cannot be undone.
           </Typography>

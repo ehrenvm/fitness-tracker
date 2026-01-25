@@ -228,7 +228,7 @@ const ActivityLeaderboard: React.FC = () => {
           </Box>
         </Paper>
 
-        {selectedActivity && (
+        {selectedActivity ? (
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
@@ -282,7 +282,7 @@ const ActivityLeaderboard: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
-        )}
+        ) : null}
       </Box>
     </Container>
   );

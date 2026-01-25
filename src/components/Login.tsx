@@ -64,11 +64,11 @@ const Login: React.FC = () => {
                 Login to Performance Tracker
               </Typography>
 
-              {error && (
+              {error ? (
                 <Typography color="error" sx={{ mb: 2 }}>
                   {error}
                 </Typography>
-              )}
+              ) : null}
 
               <Box component="form" onSubmit={(e) => { e.preventDefault(); void handleSubmit(e); }} sx={{ mt: 1, width: '100%' }}>
                 <TextField

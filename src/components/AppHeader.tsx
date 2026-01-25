@@ -43,11 +43,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
           </Typography>
         </Box>
         
-        {user && (
+        {user ? (
           <Typography variant="body1" sx={{ mr: 2 }}>
             {user.email ?? user.displayName ?? 'User'}
           </Typography>
-        )}
+        ) : null}
 
         <Box sx={{ display: 'flex', gap: 1 }}>
           <IconButton
