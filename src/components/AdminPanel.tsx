@@ -379,7 +379,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
           const data = activitiesDoc.data();
-          if (data && 'list' in data && Array.isArray(data.list)) {
+          // data is guaranteed to exist when exists() is true
+          if ('list' in data && Array.isArray(data.list)) {
             setActivities(data.list as string[]);
           }
         } else {
@@ -525,7 +526,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       // Update all users with this tag
       const updatePromises = usersWithTag.map(user => {
         const userRef = doc(db, 'users', user.id);
-        const updatedTags = user.tags!.map(tag => tag === tagToEdit ? newName : tag);
+        // tags is guaranteed to exist because usersWithTag only contains users with the tag
+        const updatedTags = (user.tags ?? []).map(tag => tag === tagToEdit ? newName : tag);
         return updateDoc(userRef, { tags: updatedTags });
       });
 
@@ -563,7 +565,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       // Remove tag from all users
       const updatePromises = usersWithTag.map(user => {
         const userRef = doc(db, 'users', user.id);
-        const updatedTags = user.tags!.filter(t => t !== tag);
+        // tags is guaranteed to exist because usersWithTag only contains users with the tag
+        const updatedTags = (user.tags ?? []).filter(t => t !== tag);
         return updateDoc(userRef, { tags: updatedTags });
       });
 
@@ -700,8 +703,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditUser = (user: User) => {
     setSelectedUserForEdit(user);
-    setEditUserFirstName(user.firstName ?? '');
-    setEditUserLastName(user.lastName ?? '');
+    // firstName and lastName are required fields, so no nullish coalescing needed
+    setEditUserFirstName(user.firstName);
+    setEditUserLastName(user.lastName);
     setEditUserGender(user.gender ?? '');
     setEditUserBirthdate(user.birthdate ?? '');
     setEditUserDialog(true);
@@ -780,8 +784,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             ...u,
             firstName: newFirstName,
             lastName: newLastName,
-            gender: editUserGender ?? undefined,
-            birthdate: editUserBirthdate ?? undefined
+            // Convert empty strings to undefined for optional fields
+            gender: editUserGender || undefined,
+            birthdate: editUserBirthdate || undefined
           } : u
         )
       );

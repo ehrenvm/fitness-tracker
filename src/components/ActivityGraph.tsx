@@ -121,19 +121,20 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     results.forEach(result => {
       const dateStr = new Date(result.date).toLocaleDateString();
       if (!dateMap.has(dateStr)) {
-        dateMap.set(dateStr, {});
+        const dateEntry: { [key: string]: number | null } = {};
+        dateMap.set(dateStr, dateEntry);
         // Create keys for each user-activity combination if multiple users, otherwise just activity
         if (hasMultipleUsers) {
           selectedActivities.forEach(activity => {
             uniqueUsers.forEach(userName => {
-              dateMap.get(dateStr)![`${activity}_${userName}_normalized`] = null;
-              dateMap.get(dateStr)![`${activity}_${userName}_original`] = null;
+              dateEntry[`${activity}_${userName}_normalized`] = null;
+              dateEntry[`${activity}_${userName}_original`] = null;
             });
           });
         } else {
           selectedActivities.forEach(activity => {
-            dateMap.get(dateStr)![`${activity}_normalized`] = null;
-            dateMap.get(dateStr)![`${activity}_original`] = null;
+            dateEntry[`${activity}_normalized`] = null;
+            dateEntry[`${activity}_original`] = null;
           });
         }
       }
@@ -143,30 +144,31 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     results.forEach(result => {
       const dateStr = new Date(result.date).toLocaleDateString();
       if (selectedActivities.includes(result.activity)) {
+        const dateEntry = dateMap.get(dateStr);
+        if (!dateEntry) return;
+        
         const range = ranges[result.activity];
         
         if (hasMultipleUsers) {
           // Store with user-specific keys
-          dateMap.get(dateStr)![`${result.activity}_${result.userName}_original`] = result.value;
+          dateEntry[`${result.activity}_${result.userName}_original`] = result.value;
           
-          if (range) {
-            // Calculate normalized value (0-100 scale)
-            const normalizedValue = range.range === 0 
-              ? 50 // If min and max are the same, set to middle of scale
-              : ((result.value - range.min) / range.range) * 100;
-            dateMap.get(dateStr)![`${result.activity}_${result.userName}_normalized`] = normalizedValue;
-          }
+          // Calculate normalized value (0-100 scale)
+          // Range is guaranteed to exist because we only process activities with results
+          const normalizedValue = range.range === 0 
+            ? 50 // If min and max are the same, set to middle of scale
+            : ((result.value - range.min) / range.range) * 100;
+          dateEntry[`${result.activity}_${result.userName}_normalized`] = normalizedValue;
         } else {
           // Single user mode - use activity-only keys (backward compatible)
-          dateMap.get(dateStr)![`${result.activity}_original`] = result.value;
+          dateEntry[`${result.activity}_original`] = result.value;
           
-          if (range) {
-            // Calculate normalized value (0-100 scale)
-            const normalizedValue = range.range === 0 
-              ? 50 // If min and max are the same, set to middle of scale
-              : ((result.value - range.min) / range.range) * 100;
-            dateMap.get(dateStr)![`${result.activity}_normalized`] = normalizedValue;
-          }
+          // Calculate normalized value (0-100 scale)
+          // Range is guaranteed to exist because we only process activities with results
+          const normalizedValue = range.range === 0 
+            ? 50 // If min and max are the same, set to middle of scale
+            : ((result.value - range.min) / range.range) * 100;
+          dateEntry[`${result.activity}_normalized`] = normalizedValue;
         }
       }
     });
@@ -247,11 +249,15 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
         if (!dateActivityMap.has(dateKey)) {
           dateActivityMap.set(dateKey, new Map());
         }
-        const activityMap = dateActivityMap.get(dateKey)!;
+        const activityMap = dateActivityMap.get(dateKey);
+        if (!activityMap) return;
         if (!activityMap.has(result.activity)) {
           activityMap.set(result.activity, []);
         }
-        activityMap.get(result.activity)!.push(result.value);
+        const activityValues = activityMap.get(result.activity);
+        if (activityValues) {
+          activityValues.push(result.value);
+        }
       }
     });
 
@@ -266,18 +272,16 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
     );
 
     allDates.forEach(dateKey => {
-      const activityMap = dateActivityMap.get(dateKey)!;
+      const activityMap = dateActivityMap.get(dateKey);
+      if (!activityMap) return;
       const dataPoint: { date: string; [key: string]: string | number | null } = { 
         date: formatDateForDisplay(dateKey) 
       };
-      
-      let hasAnyData = false;
       
       selectedActivities.forEach(activity => {
         const values = activityMap.get(activity);
         // Only calculate stats if we have at least 2 values (from different users)
         if (values && values.length >= 2) {
-          hasAnyData = true;
           // Sort values for median calculation
           const sortedValues = [...values].sort((a, b) => a - b);
           const min = sortedValues[0];
@@ -297,7 +301,6 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           dataPoint[`${activity}_max`] = max;
         } else if (values?.length === 1) {
           // Single value - min, median, and max are all the same
-          hasAnyData = true;
           const singleValue = values[0];
           dataPoint[`${activity}_min`] = singleValue;
           dataPoint[`${activity}_median`] = singleValue;
@@ -309,8 +312,14 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
         }
       });
       
-      // Only add data point if it has at least one activity with data
-      if (hasAnyData) {
+      // Only add data point if it has at least one activity with non-null values
+      const hasData = selectedActivities.some(activity => {
+        const min = dataPoint[`${activity}_min`];
+        // min is typed as string | number | null, so we only need to check for null
+        return min !== null;
+      });
+      
+      if (hasData) {
         statsData.push(dataPoint);
       }
     });
@@ -342,9 +351,10 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
             {label}
           </Typography>
           {selectedActivities.map(activity => {
-            const minEntry = payload?.find((p) => String(p.dataKey) === `${activity}_min`);
-            const medianEntry = payload?.find((p) => String(p.dataKey) === `${activity}_median`);
-            const maxEntry = payload?.find((p) => String(p.dataKey) === `${activity}_max`);
+            // payload is guaranteed to be defined due to the check above
+            const minEntry = payload.find((p) => String(p.dataKey) === `${activity}_min`);
+            const medianEntry = payload.find((p) => String(p.dataKey) === `${activity}_median`);
+            const maxEntry = payload.find((p) => String(p.dataKey) === `${activity}_max`);
             
             if (!minEntry && !medianEntry && !maxEntry) {
               return null;
@@ -507,7 +517,8 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 // Check if this activity has any data
                 const hasData = statisticalData.some(d => {
                   const median = d[medianKey];
-                  return median !== null && median !== undefined && !isNaN(Number(median));
+                  // median is typed as string | number | null, so we check for null and valid number
+                  return median !== null && typeof median === 'number' && !isNaN(median);
                 });
                 
                 if (!hasData) return;

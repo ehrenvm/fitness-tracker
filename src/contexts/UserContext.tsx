@@ -5,10 +5,7 @@ interface UserContextType {
   setUserName: (userName: string | null) => void;
 }
 
-export const UserContext = React.createContext<UserContextType>({
-  userName: null,
-  setUserName: () => {},
-});
+export const UserContext = React.createContext<UserContextType | undefined>(undefined);
 
 export const useUser = () => {
   const context = React.useContext(UserContext);

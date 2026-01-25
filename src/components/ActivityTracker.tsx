@@ -101,7 +101,8 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
           const data = activitiesDoc.data();
-          if (data && 'list' in data && Array.isArray(data.list)) {
+          // data is guaranteed to exist when exists() is true
+          if ('list' in data && Array.isArray(data.list)) {
             setActivities(data.list as string[]);
           }
         }

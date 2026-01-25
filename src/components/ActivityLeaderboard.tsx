@@ -79,7 +79,8 @@ const ActivityLeaderboard: React.FC = () => {
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
           const data = activitiesDoc.data();
-          if (data && 'list' in data && Array.isArray(data.list)) {
+          // data is guaranteed to exist when exists() is true
+          if ('list' in data && Array.isArray(data.list)) {
             setActivities(data.list as string[]);
           }
         }
@@ -134,7 +135,8 @@ const ActivityLeaderboard: React.FC = () => {
     }
 
     const userGroups = activityResults.reduce((groups, result) => {
-      if (!groups[result.userName]) {
+      // Initialize array if it doesn't exist
+      if (!(result.userName in groups)) {
         groups[result.userName] = [];
       }
       groups[result.userName].push(result);

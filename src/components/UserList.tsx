@@ -116,8 +116,9 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           
           const user: UserDoc = {
             id: doc.id,
-            firstName: firstName ?? '',
-            lastName: lastName ?? '',
+            // firstName and lastName are already strings (assigned with ?? '' above)
+            firstName,
+            lastName,
             createdAt: userData.createdAt ?? new Date().toISOString(),
             tags: userData.tags ?? [],
             gender: userData.gender,

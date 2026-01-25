@@ -51,6 +51,11 @@ export default tseslint.config(
       // TypeScript modern syntax (require type-checking)
       '@typescript-eslint/prefer-nullish-coalescing': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
+      // TypeScript strictness
+      '@typescript-eslint/no-non-null-assertion': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'error',
       // Code quality
       '@typescript-eslint/prefer-includes': 'error',
       '@typescript-eslint/prefer-string-starts-ends-with': 'error',
