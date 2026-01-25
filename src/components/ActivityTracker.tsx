@@ -382,6 +382,11 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     </Box>
   ), []);
 
+  // Don't render anything if no users are selected - let parent handle the message
+  if (userNames.length === 0) {
+    return null;
+  }
+
   return (
     <Container maxWidth="lg">
       <Box sx={{ mt: 4 }}>
@@ -390,9 +395,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         </Typography>
         
         <Typography variant="h6" gutterBottom>
-          {userNames.length === 0 ? (
-            'Select a user to view their activity tracker'
-          ) : userNames.length === 1 ? (
+          {userNames.length === 1 ? (
             <>
               Welcome, {userNames[0]}!
               {(() => {

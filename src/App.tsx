@@ -78,8 +78,8 @@ const App: React.FC = () => {
 
                     <Route path="/" element={
                       <ProtectedRoute>
-                        <Container maxWidth="lg">
-                          <Box sx={{ display: 'flex', gap: 3 }}>
+                        <Container maxWidth="lg" sx={{ py: 3 }}>
+                          <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
                             <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
                               <UserList
                                 onUserSelect={handleUserSelect}
@@ -88,7 +88,17 @@ const App: React.FC = () => {
                                 onAdminClick={handleAdminClick}
                               />
                             </Box>
-                            <Box sx={{ width: '75%', borderRadius: 4 }}
+                            <Box 
+                              sx={{ 
+                                width: '75%', 
+                                borderRadius: 4,
+                                bgcolor: 'transparent',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                minHeight: 'calc(100vh - 200px)',
+                                justifyContent: 'flex-start',
+                                ...(selectedUsers.length === 0 && { paddingTop: '10%' })
+                              }}
                               className={highlight ? 'highlight-activity-tracker' : ''}
                             >
                               {selectedUsers.length > 0 ? (
@@ -98,11 +108,10 @@ const App: React.FC = () => {
                                   display: 'flex',
                                   justifyContent: 'center',
                                   alignItems: 'center',
-                                  height: '100%',
                                   p: 3
                                 }}>
-                                  <Typography variant="h6" color="textSecondary">
-                                    Select a user to view their activity tracker
+                                  <Typography variant="h6" color="textSecondary" fontWeight="bold">
+                                    Select a user to view their activities or add a result.
                                   </Typography>
                                 </Box>
                               )}
