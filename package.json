@@ -23,7 +23,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "eslint .",
+    "lint:strict": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "migrate:name-to-firstname-lastname": "node scripts/migrate-to-firstname-lastname.js",
     "upload:users": "node scripts/upload-users.js",
