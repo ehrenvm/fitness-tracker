@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
   Typography,
@@ -114,7 +114,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [addTagDialog, setAddTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState<string>('');
 
-  const loadAllResults = async () => {
+  const loadAllResults = useCallback(async () => {
     try {
       const resultsRef = collection(db, 'results');
       const q = query(resultsRef, orderBy('date', 'desc'));
@@ -130,7 +130,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error loading results:', err);
       setError('Failed to load results. Please try again.');
     }
-  };
+  }, []);
 
   // Sort results based on current sort field and direction
   const sortedResults = [...results].sort((a, b) => {
@@ -156,32 +156,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
-  const handleSort = (field: SortField) => {
+  const handleSort = useCallback((field: SortField) => {
     if (field === sortField) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection('asc');
     }
-  };
+  }, [sortField]);
 
   useEffect(() => {
     if (isAuthenticated) {
       void loadAllResults();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadAllResults]);
 
   useEffect(() => {
     console.log('Results updated:', results);
   }, [results]);
 
-  const handleEdit = (result: Result) => {
+  const handleEdit = useCallback((result: Result) => {
     setSelectedResult(result);
     setEditValue(result.value.toString());
     setEditDialog(true);
-  };
+  }, []);
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = useCallback(async () => {
     if (!selectedResult) return;
 
     try {
@@ -207,9 +207,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating result:', err);
       setError('Failed to update result. Please try again.');
     }
-  };
+  }, [selectedResult, editValue, loadAllResults]);
 
-  const handleDeleteResult = async (resultId: string) => {
+  const handleDeleteResult = useCallback(async (resultId: string) => {
     try {
       const resultRef = doc(db, 'results', resultId);
       const resultDoc = await getDoc(resultRef);
@@ -230,9 +230,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting result:', error);
       setError('Failed to delete result. Please try again.');
     }
-  };
+  }, [loadAllResults]);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     try {
       // Get the current user's ID token
       const user = auth.currentUser;
@@ -275,10 +275,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       setError(err instanceof Error ? err.message : 'Failed to authenticate as admin');
       setIsAuthenticated(false);
     }
-  };
+  }, [password]);
 
-
-  const handleAddActivity = async () => {
+  const handleAddActivity = useCallback(async () => {
     if (!newActivity.trim()) return;
 
     try {
@@ -299,9 +298,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error adding activity:', error);
       setError('Failed to add activity. Please try again.');
     }
-  };
+  }, [newActivity, activities]);
 
-  const handleDeleteActivity = async (activity: string) => {
+  const handleDeleteActivity = useCallback(async (activity: string) => {
     try {
       const activitiesRef = doc(db, 'config', 'activities');
       const newActivities = activities.filter(a => a !== activity);
@@ -319,7 +318,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting activity:', error);
       setError('Failed to delete activity. Please try again.');
     }
-  };
+  }, [activities]);
 
   const handleEditActivity = (activity: string) => {
     setActivityToEdit(activity);
@@ -327,7 +326,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     setEditActivityDialog(true);
   };
 
-  const handleSaveActivity = async () => {
+  const handleSaveActivity = useCallback(async () => {
     if (!activityToEdit || !editActivityName.trim()) return;
 
     const newName = editActivityName.trim();
@@ -369,7 +368,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating activity:', error);
       setError('Failed to update activity. Please try again.');
     }
-  };
+  }, [activityToEdit, editActivityName, activities, loadAllResults]);
 
   // Load activities from Firebase on component mount
   useEffect(() => {
@@ -398,7 +397,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   }, [isAuthenticated]);
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       const usersRef = collection(db, 'users');
       const querySnapshot = await getDocs(usersRef);
@@ -457,14 +456,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error loading users:', error);
       setError('Failed to load users');
     }
-  };
+  }, []);
   useEffect(() => {
     if (isAuthenticated) {
       void loadUsers();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadUsers]);
 
-  const handleDeleteUser = async (user: User) => {
+  const handleDeleteUser = useCallback(async (user: User) => {
     try {
       // Delete user document
       await deleteDoc(doc(db, 'users', user.id));
@@ -491,21 +490,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting user:', error);
       setError('Failed to delete user. Please try again.');
     }
-  };
+  }, [onUserDeleted, loadUsers]);
 
-  const handleEditTags = (user: User) => {
+  const handleEditTags = useCallback((user: User) => {
     setSelectedUserForTags(user);
     setUserTags(user.tags ?? []);
     setEditTagsDialog(true);
-  };
+  }, []);
 
-  const handleEditTag = (tag: string) => {
+  const handleEditTag = useCallback((tag: string) => {
     setTagToEdit(tag);
     setEditTagName(tag);
     setEditTagDialog(true);
-  };
+  }, []);
 
-  const handleSaveTag = async () => {
+  const handleSaveTag = useCallback(async () => {
     if (!tagToEdit || !editTagName.trim()) return;
 
     const newName = editTagName.trim();
@@ -550,9 +549,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error renaming tag:', error);
       setError('Failed to rename tag. Please try again.');
     }
-  };
+  }, [tagToEdit, editTagName, users, loadUsers]);
 
-  const handleDeleteTag = async (tag: string) => {
+  const handleDeleteTag = useCallback(async (tag: string) => {
     try {
       // Find all users with this tag
       const usersWithTag = users.filter(user => user.tags?.includes(tag));
@@ -586,27 +585,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting tag:', error);
       setError('Failed to delete tag. Please try again.');
     }
-  };
+  }, [users, loadUsers]);
 
-  const handleToggleUserSelection = (userId: string) => {
-    const newSelected = new Set(selectedUsers);
-    if (newSelected.has(userId)) {
-      newSelected.delete(userId);
-    } else {
-      newSelected.add(userId);
-    }
-    setSelectedUsers(newSelected);
-  };
+  const handleToggleUserSelection = useCallback((userId: string) => {
+    setSelectedUsers(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(userId)) {
+        newSelected.delete(userId);
+      } else {
+        newSelected.add(userId);
+      }
+      return newSelected;
+    });
+  }, []);
 
-  const handleSelectAllUsers = () => {
-    if (selectedUsers.size === users.length) {
-      setSelectedUsers(new Set());
-    } else {
-      setSelectedUsers(new Set(users.map(u => u.id)));
-    }
-  };
+  const handleSelectAllUsers = useCallback(() => {
+    setSelectedUsers(prev => {
+      if (prev.size === users.length) {
+        return new Set();
+      } else {
+        return new Set(users.map(u => u.id));
+      }
+    });
+  }, [users]);
 
-  const handleBulkAddTag = async () => {
+  const handleBulkAddTag = useCallback(async () => {
     if (!bulkTagToAdd.trim() || selectedUsers.size === 0) return;
 
     const tagToAdd = bulkTagToAdd.trim();
@@ -642,9 +645,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error adding tag to users:', error);
       setError('Failed to add tag to users. Please try again.');
     }
-  };
+  }, [bulkTagToAdd, selectedUsers, users, loadUsers]);
 
-  const handleAddTag = () => {
+  const handleAddTag = useCallback(() => {
     if (!newTagName.trim()) return;
 
     const tagName = newTagName.trim();
@@ -667,9 +670,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     setTimeout(() => {
       setBulkAddTagDialog(true);
     }, 100);
-  };
+  }, [newTagName, allExistingTags]);
 
-  const handleSaveTags = async () => {
+  const handleSaveTags = useCallback(async () => {
     if (!selectedUserForTags) return;
 
     try {
@@ -699,9 +702,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating tags:', error);
       setError('Failed to update tags. Please try again.');
     }
-  };
+  }, [selectedUserForTags, userTags, loadUsers]);
 
-  const handleEditUser = (user: User) => {
+  const handleEditUser = useCallback((user: User) => {
     setSelectedUserForEdit(user);
     // firstName and lastName are required fields, so no nullish coalescing needed
     setEditUserFirstName(user.firstName);
@@ -709,9 +712,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     setEditUserGender(user.gender ?? '');
     setEditUserBirthdate(user.birthdate ?? '');
     setEditUserDialog(true);
-  };
+  }, []);
 
-  const handleSaveUser = async () => {
+  const handleSaveUser = useCallback(async () => {
     if (!selectedUserForEdit) return;
   
     const newFirstName = editUserFirstName.trim();
@@ -806,7 +809,319 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating user:', error);
       setError('Failed to update user. Please try again.');
     }
-  };
+  }, [selectedUserForEdit, editUserFirstName, editUserLastName, editUserGender, editUserBirthdate, users, loadAllResults]);
+
+  const handleLoginFormSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    void handleLogin();
+  }, [handleLogin]);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
+
+  const handlePasswordKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void handleLogin();
+    }
+  }, [handleLogin]);
+
+  const handleLoginClick = useCallback(() => {
+    void handleLogin();
+  }, [handleLogin]);
+
+  const handleTabChange = useCallback((_event: unknown, newValue: number) => {
+    setSelectedTab(newValue);
+  }, []);
+
+  const createSortHandler = useCallback((field: SortField) => {
+    return () => {
+      handleSort(field);
+    };
+  }, [handleSort]);
+
+  const createDeleteResultHandler = useCallback((resultId: string) => {
+    return () => {
+      void handleDeleteResult(resultId);
+    };
+  }, [handleDeleteResult]);
+
+  const createEditResultHandler = useCallback((result: Result) => {
+    return () => {
+      handleEdit(result);
+    };
+  }, [handleEdit]);
+
+  const createDeleteActivityHandler = useCallback((activity: string) => {
+    return () => {
+      setRemoveActivityDialog(true);
+      void handleDeleteActivity(activity);
+    };
+  }, [handleDeleteActivity]);
+
+  const createEditActivityHandler = useCallback((activity: string) => {
+    return () => {
+      handleEditActivity(activity);
+    };
+  }, [handleEditActivity]);
+
+  const createDeleteUserHandler = useCallback((user: User) => {
+    return () => {
+      setConfirmDeleteUser(user);
+    };
+  }, []);
+
+  const createEditUserHandler = useCallback((user: User) => {
+    return () => {
+      handleEditUser(user);
+    };
+  }, [handleEditUser]);
+
+  const createEditTagsHandler = useCallback((user: User) => {
+    return () => {
+      handleEditTags(user);
+    };
+  }, [handleEditTags]);
+
+  const createEditTagHandler = useCallback((tag: string) => {
+    return () => {
+      handleEditTag(tag);
+    };
+  }, [handleEditTag]);
+
+  const createDeleteTagHandler = useCallback((tag: string) => {
+    return () => {
+      setConfirmDeleteTag(tag);
+    };
+  }, []);
+
+  const handleCloseConfirmDeleteUser = useCallback(() => {
+    setConfirmDeleteUser(null);
+  }, []);
+
+  const handleConfirmDeleteUser = useCallback(() => {
+    if (confirmDeleteUser) {
+      void handleDeleteUser(confirmDeleteUser);
+    }
+  }, [confirmDeleteUser, handleDeleteUser]);
+
+  const handleCloseAddActivityDialog = useCallback(() => {
+    setAddActivityDialog(false);
+  }, []);
+
+  const handleNewActivityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewActivity(e.target.value);
+  }, []);
+
+  const handleAddActivityClick = useCallback(() => {
+    void handleAddActivity();
+  }, [handleAddActivity]);
+
+  const handleCloseRemoveActivityDialog = useCallback(() => {
+    setRemoveActivityDialog(false);
+  }, []);
+
+  const handleCloseEditDialog = useCallback(() => {
+    setEditDialog(false);
+  }, []);
+
+  const handleEditValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditValue(e.target.value);
+  }, []);
+
+  const handleSaveEditClick = useCallback(() => {
+    void handleSaveEdit();
+  }, [handleSaveEdit]);
+
+  const handleCloseEditTagsDialog = useCallback(() => {
+    setEditTagsDialog(false);
+    setSelectedUserForTags(null);
+    setUserTags([]);
+  }, []);
+
+  const handleUserTagsChange = useCallback((_event: unknown, newValue: string[]) => {
+    setUserTags(newValue);
+  }, []);
+
+  const renderUserTags = useCallback((value: string[], getTagProps: (options: { index: number }) => { key: number; className: string; disabled: boolean; 'data-tag-index': number; tabIndex: number; onDelete: (event: unknown) => void }) => (
+    value.map((option, index) => {
+      const { key: _key, ...tagProps } = getTagProps({ index });
+      return (
+        <Chip
+          variant="outlined"
+          label={option}
+          {...tagProps}
+          key={option}
+          color="primary"
+        />
+      );
+    })
+  ), []);
+
+  const renderUserTagsInput = useCallback((params: unknown) => (
+    <TextField
+      {...(params as Record<string, unknown>)}
+      label="Tags"
+      placeholder="Type to add tags or select existing"
+      helperText="Select from existing tags or type to create a new one"
+    />
+  ), []);
+
+  const handleSaveTagsClick = useCallback(() => {
+    void handleSaveTags();
+  }, [handleSaveTags]);
+
+  const handleCloseEditUserDialog = useCallback(() => {
+    setEditUserDialog(false);
+    setSelectedUserForEdit(null);
+    setEditUserFirstName('');
+    setEditUserLastName('');
+    setEditUserGender('');
+    setEditUserBirthdate('');
+  }, []);
+
+  const handleEditUserFirstNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditUserFirstName(e.target.value);
+  }, []);
+
+  const handleEditUserLastNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditUserLastName(e.target.value);
+  }, []);
+
+  const handleEditUserGenderChange = useCallback((e: SelectChangeEvent) => {
+    setEditUserGender(e.target.value);
+  }, []);
+
+  const handleEditUserBirthdateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    value = value.replace(/[^\d/]/g, '');
+    if (value.length > 2 && value[2] !== '/') {
+      value = value.slice(0, 2) + '/' + value.slice(2);
+    }
+    if (value.length > 5 && value[5] !== '/') {
+      value = value.slice(0, 5) + '/' + value.slice(5);
+    }
+    if (value.length <= 10) {
+      setEditUserBirthdate(value);
+    }
+  }, []);
+
+  const handleSaveUserClick = useCallback(() => {
+    void handleSaveUser();
+  }, [handleSaveUser]);
+
+  const handleCloseEditActivityDialog = useCallback(() => {
+    setEditActivityDialog(false);
+    setActivityToEdit(null);
+    setEditActivityName('');
+  }, []);
+
+  const handleEditActivityNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditActivityName(e.target.value);
+  }, []);
+
+  const handleSaveActivityClick = useCallback(() => {
+    void handleSaveActivity();
+  }, [handleSaveActivity]);
+
+  const handleCloseEditTagDialog = useCallback(() => {
+    setEditTagDialog(false);
+    setTagToEdit(null);
+    setEditTagName('');
+  }, []);
+
+  const handleEditTagNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditTagName(e.target.value);
+  }, []);
+
+  const handleSaveTagClick = useCallback(() => {
+    void handleSaveTag();
+  }, [handleSaveTag]);
+
+  const handleCloseConfirmDeleteTag = useCallback(() => {
+    setConfirmDeleteTag(null);
+  }, []);
+
+  const handleConfirmDeleteTag = useCallback(() => {
+    if (confirmDeleteTag) {
+      void handleDeleteTag(confirmDeleteTag);
+    }
+  }, [confirmDeleteTag, handleDeleteTag]);
+
+  const handleBulkTagToAddAutocompleteChange = useCallback((_event: unknown, newValue: string | null) => {
+    setBulkTagToAdd(newValue ?? '');
+  }, []);
+
+  const handleBulkTagToAddInputChange = useCallback((_event: unknown, newInputValue: string) => {
+    setBulkTagToAdd(newInputValue);
+  }, []);
+
+  const renderBulkTagInput = useCallback((params: unknown) => (
+    <TextField
+      {...(params as Record<string, unknown>)}
+      label="Tag"
+      placeholder="Type to add tag or select existing"
+      helperText="Select from existing tags or type to create a new one"
+      autoFocus
+    />
+  ), []);
+
+  const handleBulkAddTagClick = useCallback(() => {
+    void handleBulkAddTag();
+  }, [handleBulkAddTag]);
+
+  const handleCloseBulkAddTagDialog = useCallback(() => {
+    setBulkAddTagDialog(false);
+    setBulkTagToAdd('');
+  }, []);
+
+  const handleOpenBulkAddTagDialog = useCallback(() => {
+    setBulkAddTagDialog(true);
+  }, []);
+
+  const handleOpenAddActivityDialog = useCallback(() => {
+    setAddActivityDialog(true);
+  }, []);
+
+  const handleOpenAddTagDialog = useCallback(() => {
+    setAddTagDialog(true);
+  }, []);
+
+  const handleNewTagNameAutocompleteChange = useCallback((_event: unknown, newValue: string | null) => {
+    setNewTagName(newValue ?? '');
+  }, []);
+
+  const handleNewTagNameInputChange = useCallback((_event: unknown, newInputValue: string) => {
+    setNewTagName(newInputValue);
+  }, []);
+
+  const renderNewTagInput = useCallback((params: unknown) => (
+    <TextField
+      {...(params as Record<string, unknown>)}
+      label="Tag Name"
+      placeholder="Enter tag name"
+      helperText="Select from existing tags or type to create a new one"
+      autoFocus
+      error={allExistingTags.includes(newTagName.trim()) && newTagName.trim() !== ''}
+    />
+  ), [allExistingTags, newTagName]);
+
+  const handleCloseAddTagDialog = useCallback(() => {
+    setAddTagDialog(false);
+    setNewTagName('');
+    setError(null);
+  }, []);
+
+  const handleAddTagClick = useCallback(() => {
+    handleAddTag();
+  }, [handleAddTag]);
+
+  const createToggleUserSelectionHandler = useCallback((userId: string) => {
+    return () => {
+      handleToggleUserSelection(userId);
+    };
+  }, [handleToggleUserSelection]);
 
   if (!isAuthenticated) {
     return (
@@ -820,21 +1135,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               Admin Login
             </Typography>
           </Box>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); void handleLogin(); }}>
+          <Box component="form" onSubmit={handleLoginFormSubmit}>
             <TextField
               fullWidth
               type="password"
               label="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleLogin(); } }}
+              onChange={handlePasswordChange}
+              onKeyPress={handlePasswordKeyPress}
               margin="normal"
             />
             <Button
               fullWidth
               variant="contained"
               color="primary"
-              onClick={() => { void handleLogin(); }}
+              onClick={handleLoginClick}
               sx={{ mt: 2 }}
             >
               Login
@@ -868,7 +1183,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       ) : null}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={selectedTab} onChange={(_, newValue: number) => setSelectedTab(newValue)}>
+        <Tabs value={selectedTab} onChange={handleTabChange}>
           <Tab label="Activity History" />
           <Tab label="Users" />
           <Tab label="Activities" />
@@ -891,7 +1206,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <TableSortLabel
                         active={sortField === 'userName'}
                         direction={sortField === 'userName' ? sortDirection : 'asc'}
-                        onClick={() => handleSort('userName')}
+                        onClick={createSortHandler('userName')}
                       >
                         User
                       </TableSortLabel>
@@ -900,7 +1215,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <TableSortLabel
                         active={sortField === 'activity'}
                         direction={sortField === 'activity' ? sortDirection : 'asc'}
-                        onClick={() => handleSort('activity')}
+                        onClick={createSortHandler('activity')}
                       >
                         Activity
                       </TableSortLabel>
@@ -909,7 +1224,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <TableSortLabel
                         active={sortField === 'value'}
                         direction={sortField === 'value' ? sortDirection : 'asc'}
-                        onClick={() => handleSort('value')}
+                        onClick={createSortHandler('value')}
                       >
                         Value
                       </TableSortLabel>
@@ -918,7 +1233,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <TableSortLabel
                         active={sortField === 'date'}
                         direction={sortField === 'date' ? sortDirection : 'asc'}
-                        onClick={() => handleSort('date')}
+                        onClick={createSortHandler('date')}
                       >
                         Date
                       </TableSortLabel>
@@ -938,7 +1253,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                           size="small"
                           variant="outlined"
                           color="primary"
-                          onClick={() => { handleEdit(result); }}
+                          onClick={createEditResultHandler(result)}
                         >
                           Edit
                         </Button>
@@ -946,7 +1261,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                           size="small"
                           variant="outlined"
                           color="error"
-                          onClick={() => { void handleDeleteResult(result.id); }}
+                          onClick={createDeleteResultHandler(result.id)}
                         >
                           Delete
                         </Button>
@@ -967,15 +1282,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               Users {selectedUsers.size > 0 && `(${selectedUsers.size} selected)`}
             </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              {selectedUsers.size > 0 && (
+              {selectedUsers.size > 0 ? (
                 <Button
                   variant="contained"
                   startIcon={<TagIcon />}
-                  onClick={() => setBulkAddTagDialog(true)}
+                  onClick={handleOpenBulkAddTagDialog}
                 >
                   Add Tag to Selected
                 </Button>
-              )}
+              ) : null}
               <Button
                 variant="outlined"
                 onClick={handleSelectAllUsers}
@@ -1009,7 +1324,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                     <TableCell padding="checkbox">
                       <Checkbox
                         checked={selectedUsers.has(user.id)}
-                        onChange={() => handleToggleUserSelection(user.id)}
+                        onChange={createToggleUserSelectionHandler(user.id)}
                       />
                     </TableCell>
                     <TableCell>{getFullName(user)}</TableCell>
@@ -1042,7 +1357,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                         <Button
                           startIcon={<EditIcon />}
                           color="primary"
-                          onClick={() => handleEditUser(user)}
+                          onClick={createEditUserHandler(user)}
                           size="small"
                         >
                           Edit
@@ -1050,7 +1365,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                         <Button
                           startIcon={<TagIcon />}
                           color="primary"
-                          onClick={() => handleEditTags(user)}
+                          onClick={createEditTagsHandler(user)}
                           size="small"
                         >
                           Tags
@@ -1058,7 +1373,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                         <Button
                           startIcon={<DeleteIcon />}
                           color="error"
-                          onClick={() => setConfirmDeleteUser(user)}
+                          onClick={createDeleteUserHandler(user)}
                           size="small"
                         >
                           Remove
@@ -1079,7 +1394,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             <Typography variant="h6">Manage Activities</Typography>
             <Button
               variant="contained"
-              onClick={() => setAddActivityDialog(true)}
+              onClick={handleOpenAddActivityDialog}
             >
               Add Activity
             </Button>
@@ -1092,7 +1407,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   <IconButton
                     edge="end"
                     aria-label="edit"
-                    onClick={() => handleEditActivity(activity)}
+                    onClick={createEditActivityHandler(activity)}
                     sx={{ mr: 1 }}
                   >
                     <EditIcon />
@@ -1100,7 +1415,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   <IconButton
                     edge="end"
                     aria-label="delete"
-                    onClick={() => { void handleDeleteActivity(activity); }}
+                    onClick={createDeleteActivityHandler(activity)}
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -1118,7 +1433,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             <Button
               variant="contained"
               startIcon={<TagIcon />}
-              onClick={() => setAddTagDialog(true)}
+              onClick={handleOpenAddTagDialog}
             >
               Add Tag
             </Button>
@@ -1142,7 +1457,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <IconButton
                         edge="end"
                         aria-label="edit"
-                        onClick={() => handleEditTag(tag)}
+                        onClick={createEditTagHandler(tag)}
                         sx={{ mr: 1 }}
                       >
                         <EditIcon />
@@ -1150,7 +1465,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       <IconButton
                         edge="end"
                         aria-label="delete"
-                        onClick={() => setConfirmDeleteTag(tag)}
+                        onClick={createDeleteTagHandler(tag)}
                       >
                         <DeleteIcon />
                       </IconButton>
@@ -1166,7 +1481,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Confirm Delete User Dialog */}
       <Dialog
         open={Boolean(confirmDeleteUser)}
-        onClose={() => setConfirmDeleteUser(null)}
+        onClose={handleCloseConfirmDeleteUser}
       >
         <DialogTitle>Confirm User Deletion</DialogTitle>
         <DialogContent>
@@ -1182,11 +1497,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDeleteUser(null)}>Cancel</Button>
+          <Button onClick={handleCloseConfirmDeleteUser}>Cancel</Button>
           <Button
             color="error"
             variant="contained"
-            onClick={() => { if (confirmDeleteUser) { void handleDeleteUser(confirmDeleteUser); } }}
+            onClick={handleConfirmDeleteUser}
           >
             Delete User
           </Button>
@@ -1196,7 +1511,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Add Activity Dialog */}
       <Dialog
         open={addActivityDialog}
-        onClose={() => setAddActivityDialog(false)}
+        onClose={handleCloseAddActivityDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1213,16 +1528,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             label="Activity Name"
             fullWidth
             value={newActivity}
-            onChange={(e) => setNewActivity(e.target.value)}
+            onChange={handleNewActivityChange}
             placeholder="e.g., Running (km) or Height (ft/in)"
             helperText="For compound units, use format: Activity (unit1/unit2)"
             sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddActivityDialog(false)}>Cancel</Button>
+          <Button onClick={handleCloseAddActivityDialog}>Cancel</Button>
           <Button
-            onClick={() => { void handleAddActivity(); }}
+            onClick={handleAddActivityClick}
             color="primary"
             disabled={!newActivity.trim()}
           >
@@ -1234,7 +1549,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Remove Activity Dialog */}
       <Dialog
         open={removeActivityDialog}
-        onClose={() => setRemoveActivityDialog(false)}
+        onClose={handleCloseRemoveActivityDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1248,7 +1563,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   <IconButton
                     edge="end"
                     aria-label="delete"
-                    onClick={() => { void handleDeleteActivity(activity); }}
+                    onClick={createDeleteActivityHandler(activity)}
                   >
                     <DeleteIcon />
                   </IconButton>
@@ -1258,11 +1573,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           </List>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRemoveActivityDialog(false)}>Close</Button>
+          <Button onClick={handleCloseRemoveActivityDialog}>Close</Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={editDialog} onClose={() => setEditDialog(false)}>
+      <Dialog open={editDialog} onClose={handleCloseEditDialog}>
         <DialogTitle>Edit Result</DialogTitle>
         <DialogContent>
           <TextField
@@ -1272,12 +1587,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             type="number"
             fullWidth
             value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
+            onChange={handleEditValueChange}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialog(false)}>Cancel</Button>
-          <Button onClick={() => { void handleSaveEdit(); }} color="primary">
+          <Button onClick={handleCloseEditDialog}>Cancel</Button>
+          <Button onClick={handleSaveEditClick} color="primary">
             Save
           </Button>
         </DialogActions>
@@ -1286,11 +1601,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Edit Tags Dialog */}
       <Dialog
         open={editTagsDialog ? selectedUserForTags !== null : false}
-        onClose={() => {
-          setEditTagsDialog(false);
-          setSelectedUserForTags(null);
-          setUserTags([]);
-        }}
+        onClose={handleCloseEditTagsDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1307,42 +1618,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             freeSolo
             options={allExistingTags}
             value={userTags}
-            onChange={(event, newValue) => {
-              setUserTags(newValue);
-            }}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => (
-                <Chip
-                  variant="outlined"
-                  label={option}
-                  {...getTagProps({ index })}
-                  key={option}
-                  color="primary"
-                />
-              ))
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Tags"
-                placeholder="Type to add tags or select existing"
-                helperText="Select from existing tags or type to create a new one"
-              />
-            )}
+            onChange={handleUserTagsChange}
+            renderTags={renderUserTags}
+            renderInput={renderUserTagsInput}
             sx={{ mb: 2 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setEditTagsDialog(false);
-              setSelectedUserForTags(null);
-              setUserTags([]);
-            }}
-          >
+          <Button onClick={handleCloseEditTagsDialog}>
             Cancel
           </Button>
-          <Button onClick={() => { void handleSaveTags(); }} color="primary" variant="contained">
+          <Button onClick={handleSaveTagsClick} color="primary" variant="contained">
             Save Tags
           </Button>
         </DialogActions>
@@ -1351,14 +1637,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Edit User Dialog */}
       <Dialog
         open={editUserDialog ? selectedUserForEdit !== null : false}
-        onClose={() => {
-          setEditUserDialog(false);
-          setSelectedUserForEdit(null);
-          setEditUserFirstName('');
-          setEditUserLastName('');
-          setEditUserGender('');
-          setEditUserBirthdate('');
-        }}
+        onClose={handleCloseEditUserDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1375,7 +1654,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             fullWidth
             label="First Name *"
             value={editUserFirstName}
-            onChange={(e) => setEditUserFirstName(e.target.value)}
+            onChange={handleEditUserFirstNameChange}
             margin="dense"
             sx={{ mb: 2, mt: 1 }}
             required
@@ -1384,7 +1663,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             fullWidth
             label="Last Name"
             value={editUserLastName}
-            onChange={(e) => setEditUserLastName(e.target.value)}
+            onChange={handleEditUserLastNameChange}
             margin="dense"
             sx={{ mb: 2 }}
           />
@@ -1393,7 +1672,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             <Select
               value={editUserGender}
               label="Gender"
-              onChange={(e: SelectChangeEvent) => setEditUserGender(e.target.value)}
+              onChange={handleEditUserGenderChange}
             >
               <MenuItem value="">Not specified</MenuItem>
               <MenuItem value="Male">Male</MenuItem>
@@ -1406,41 +1685,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             label="Birthdate"
             placeholder="MM/DD/YYYY"
             value={editUserBirthdate}
-            onChange={(e) => {
-              let value = e.target.value;
-              // Allow only digits and forward slashes
-              value = value.replace(/[^\d/]/g, '');
-              // Auto-format as user types
-              if (value.length > 2 && value[2] !== '/') {
-                value = value.slice(0, 2) + '/' + value.slice(2);
-              }
-              if (value.length > 5 && value[5] !== '/') {
-                value = value.slice(0, 5) + '/' + value.slice(5);
-              }
-              // Limit to MM/DD/YYYY format (10 characters)
-              if (value.length <= 10) {
-                setEditUserBirthdate(value);
-              }
-            }}
+            onChange={handleEditUserBirthdateChange}
             helperText="Format: MM/DD/YYYY (e.g., 01/15/2000)"
             sx={{ mb: 2 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setEditUserDialog(false);
-              setSelectedUserForEdit(null);
-              setEditUserFirstName('');
-              setEditUserLastName('');
-              setEditUserGender('');
-              setEditUserBirthdate('');
-              setError(null);
-            }}
-          >
+          <Button onClick={handleCloseEditUserDialog}>
             Cancel
           </Button>
-          <Button onClick={() => { void handleSaveUser(); }} color="primary" variant="contained">
+          <Button onClick={handleSaveUserClick} color="primary" variant="contained">
             Save
           </Button>
         </DialogActions>
@@ -1448,7 +1702,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Edit Activity Dialog */}
       <Dialog
         open={editActivityDialog}
-        onClose={() => setEditActivityDialog(false)}
+        onClose={handleCloseEditActivityDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1463,13 +1717,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             label="Activity Name"
             fullWidth
             value={editActivityName}
-            onChange={(e) => setEditActivityName(e.target.value)}
+            onChange={handleEditActivityNameChange}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditActivityDialog(false)}>Cancel</Button>
+          <Button onClick={handleCloseEditActivityDialog}>Cancel</Button>
           <Button
-            onClick={() => { void handleSaveActivity(); }}
+            onClick={handleSaveActivityClick}
             color="primary"
             variant="contained"
             disabled={!editActivityName.trim()}
@@ -1482,11 +1736,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Edit Tag Dialog */}
       <Dialog
         open={editTagDialog}
-        onClose={() => {
-          setEditTagDialog(false);
-          setTagToEdit(null);
-          setEditTagName('');
-        }}
+        onClose={handleCloseEditTagDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1506,22 +1756,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             label="New Tag Name"
             fullWidth
             value={editTagName}
-            onChange={(e) => setEditTagName(e.target.value)}
+            onChange={handleEditTagNameChange}
             helperText="This will update all users with this tag"
           />
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setEditTagDialog(false);
-              setTagToEdit(null);
-              setEditTagName('');
-            }}
-          >
+          <Button onClick={handleCloseEditTagDialog}>
             Cancel
           </Button>
           <Button
-            onClick={() => { void handleSaveTag(); }}
+            onClick={handleSaveTagClick}
             color="primary"
             variant="contained"
             disabled={!editTagName.trim() || editTagName.trim() === tagToEdit}
@@ -1534,7 +1778,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Confirm Delete Tag Dialog */}
       <Dialog
         open={Boolean(confirmDeleteTag)}
-        onClose={() => setConfirmDeleteTag(null)}
+        onClose={handleCloseConfirmDeleteTag}
         maxWidth="sm"
         fullWidth
       >
@@ -1555,13 +1799,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                   .map(user => (
                     <li key={user.id}>{getFullName(user)}</li>
                   ))}
-                {users.filter(user => user.tags?.includes(confirmDeleteTag)).length > 10 && (
+                {users.filter(user => user.tags?.includes(confirmDeleteTag)).length > 10 ? (
                   <li>
                     <Typography variant="body2" color="text.secondary">
                       ... and {users.filter(user => user.tags?.includes(confirmDeleteTag)).length - 10} more
                     </Typography>
                   </li>
-                )}
+                ) : null}
               </Box>
             </Box>
           ) : null}
@@ -1570,11 +1814,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDeleteTag(null)}>Cancel</Button>
+          <Button onClick={handleCloseConfirmDeleteTag}>Cancel</Button>
           <Button
             color="error"
             variant="contained"
-            onClick={() => { if (confirmDeleteTag) { void handleDeleteTag(confirmDeleteTag); } }}
+            onClick={handleConfirmDeleteTag}
           >
             Delete Tag
           </Button>
@@ -1584,10 +1828,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Bulk Add Tag Dialog */}
       <Dialog
         open={bulkAddTagDialog}
-        onClose={() => {
-          setBulkAddTagDialog(false);
-          setBulkTagToAdd('');
-        }}
+        onClose={handleCloseBulkAddTagDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1601,35 +1842,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             freeSolo
             options={allExistingTags}
             value={bulkTagToAdd}
-            onChange={(event, newValue) => {
-              setBulkTagToAdd(newValue ?? '');
-            }}
-            onInputChange={(event, newInputValue) => {
-              setBulkTagToAdd(newInputValue);
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Tag"
-                placeholder="Type to add tag or select existing"
-                helperText="Select from existing tags or type to create a new one"
-                autoFocus
-              />
-            )}
+            onChange={handleBulkTagToAddAutocompleteChange}
+            onInputChange={handleBulkTagToAddInputChange}
+            renderInput={renderBulkTagInput}
             sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setBulkAddTagDialog(false);
-              setBulkTagToAdd('');
-            }}
-          >
+          <Button onClick={handleCloseBulkAddTagDialog}>
             Cancel
           </Button>
           <Button
-            onClick={() => { void handleBulkAddTag(); }}
+            onClick={handleBulkAddTagClick}
             color="primary"
             variant="contained"
             disabled={!bulkTagToAdd.trim() || selectedUsers.size === 0}
@@ -1642,11 +1866,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       {/* Add Tag Dialog */}
       <Dialog
         open={addTagDialog}
-        onClose={() => {
-          setAddTagDialog(false);
-          setNewTagName('');
-          setError(null);
-        }}
+        onClose={handleCloseAddTagDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -1659,22 +1879,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             freeSolo
             options={allExistingTags}
             value={newTagName}
-            onChange={(event, newValue) => {
-              setNewTagName(newValue ?? '');
-            }}
-            onInputChange={(event, newInputValue) => {
-              setNewTagName(newInputValue);
-            }}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Tag Name"
-                placeholder="Enter tag name"
-                helperText="Select from existing tags or type to create a new one"
-                autoFocus
-                error={allExistingTags.includes(newTagName.trim()) && newTagName.trim() !== ''}
-              />
-            )}
+            onChange={handleNewTagNameAutocompleteChange}
+            onInputChange={handleNewTagNameInputChange}
+            renderInput={renderNewTagInput}
             sx={{ mt: 1 }}
           />
           {allExistingTags.includes(newTagName.trim()) && newTagName.trim() !== '' && (
@@ -1684,17 +1891,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setAddTagDialog(false);
-              setNewTagName('');
-              setError(null);
-            }}
-          >
+          <Button onClick={handleCloseAddTagDialog}>
             Cancel
           </Button>
           <Button
-            onClick={handleAddTag}
+            onClick={handleAddTagClick}
             color="primary"
             variant="contained"
             disabled={!newTagName.trim() || allExistingTags.includes(newTagName.trim())}
