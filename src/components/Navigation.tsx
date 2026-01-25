@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Drawer,
@@ -28,6 +28,10 @@ const Navigation: React.FC = () => {
     { text: 'Admin', icon: <AdminIcon />, path: '/admin' }
   ];
 
+  const createNavigateHandler = useCallback((path: string) => () => {
+    navigate(path);
+  }, [navigate]);
+
   return (
     <Drawer
       variant="permanent"
@@ -51,7 +55,7 @@ const Navigation: React.FC = () => {
           <ListItem
             button
             key={item.text}
-            onClick={() => navigate(item.path)}
+            onClick={createNavigateHandler(item.path)}
             selected={location.pathname === item.path}
           >
             <ListItemIcon>{item.icon}</ListItemIcon>

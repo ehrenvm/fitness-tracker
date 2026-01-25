@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import { Box, Container, CssBaseline } from '@mui/material';
@@ -40,27 +40,27 @@ const App: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleUserSelect = (userNames: string[]): void => {
+  const handleUserSelect = useCallback((userNames: string[]): void => {
     setSelectedUsers(userNames);
     if (userNames.length > 0) {
       setHighlight(true);
       if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
       highlightTimeout.current = setTimeout(() => setHighlight(false), 2500);
     }
-  };
+  }, []);
 
-  const handleUserDeleted = (): void => {
+  const handleUserDeleted = useCallback((): void => {
     setRefreshTrigger(prev => prev + 1);
     setSelectedUsers([]);
-  };
+  }, []);
 
-  const handleAdminClick = (): void => {
+  const handleAdminClick = useCallback((): void => {
     navigate('/admin');
-  };
+  }, [navigate]);
 
-  const handleBackClick = (): void => {
+  const handleBackClick = useCallback((): void => {
     navigate('/');
-  };
+  }, [navigate]);
 
   return (
     <ThemeProvider theme={theme}>

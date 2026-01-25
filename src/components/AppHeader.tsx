@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -18,13 +18,17 @@ interface AppHeaderProps {
 const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
   const [user] = useAuthState(auth);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);
     }
-  };
+  }, []);
+
+  const handleLogoutClick = useCallback(() => {
+    void handleLogout();
+  }, [handleLogout]);
 
   return (
     <AppBar position="static" sx={{ bgcolor: 'primary.main', mb: 3 }}>
@@ -59,7 +63,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
           </IconButton>
           <IconButton
             color="inherit"
-            onClick={() => { void handleLogout(); }}
+            onClick={handleLogoutClick}
             size="large"
           >
             <LogoutIcon />

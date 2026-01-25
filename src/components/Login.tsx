@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button, Box, Typography, Paper, TextField, AppBar, Toolbar } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -20,7 +20,20 @@ const Login: React.FC = () => {
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to authenticate');
     }
-  };
+  }, [login, email, password, navigate]);
+
+  const handleFormSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    void handleSubmit(e);
+  }, [handleSubmit]);
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -70,7 +83,7 @@ const Login: React.FC = () => {
                 </Typography>
               ) : null}
 
-              <Box component="form" onSubmit={(e) => { e.preventDefault(); void handleSubmit(e); }} sx={{ mt: 1, width: '100%' }}>
+              <Box component="form" onSubmit={handleFormSubmit} sx={{ mt: 1, width: '100%' }}>
                 <TextField
                   margin="normal"
                   required
@@ -81,7 +94,7 @@ const Login: React.FC = () => {
                   autoComplete="email"
                   autoFocus
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
                 />
                 <TextField
                   margin="normal"
@@ -93,7 +106,7 @@ const Login: React.FC = () => {
                   id="password"
                   autoComplete="current-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                 />
                 <Button
                   type="submit"
