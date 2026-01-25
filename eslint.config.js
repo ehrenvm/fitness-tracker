@@ -78,9 +78,9 @@ export default tseslint.config(
       'react/no-array-index-key': 'warn',
       'react/prop-types': 'off', // Using TypeScript for prop validation
       'react/react-in-jsx-scope': 'off', // Not needed with React 17+
-      // React performance (set to warn for now - requires refactoring to fix)
-      'react/jsx-no-bind': 'warn',
-      'react/jsx-no-leaked-render': 'warn',
+      // React performance
+      'react/jsx-no-bind': 'error',
+      'react/jsx-no-leaked-render': 'error',
     },
     settings: {
       react: {
