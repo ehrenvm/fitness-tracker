@@ -78,14 +78,17 @@ const ActivityLeaderboard: React.FC = () => {
         const activitiesRef = doc(db, 'config', 'activities');
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
-          setActivities(activitiesDoc.data().list);
+          const data = activitiesDoc.data();
+          if (data && 'list' in data && Array.isArray(data.list)) {
+            setActivities(data.list as string[]);
+          }
         }
       } catch (error) {
         console.error('Error loading activities:', error);
       }
     };
 
-    loadActivities();
+    void loadActivities();
   }, []);
 
   const loadResults = async (activity: string) => {
@@ -107,7 +110,7 @@ const ActivityLeaderboard: React.FC = () => {
 
   useEffect(() => {
     if (selectedActivity) {
-      loadResults(selectedActivity);
+      void loadResults(selectedActivity);
     }
   }, [selectedActivity]);
 

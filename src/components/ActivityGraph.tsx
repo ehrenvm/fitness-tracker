@@ -295,7 +295,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
           dataPoint[`${activity}_min`] = min;
           dataPoint[`${activity}_median`] = median;
           dataPoint[`${activity}_max`] = max;
-        } else if (values && values.length === 1) {
+        } else if (values?.length === 1) {
           // Single value - min, median, and max are all the same
           hasAnyData = true;
           const singleValue = values[0];
@@ -335,7 +335,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
   };
 
   const statisticalTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-    if (active && payload && payload.length) {
+    if (active && payload?.length) {
       return (
         <Paper sx={{ p: 2 }}>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
@@ -358,7 +358,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 <Typography variant="body2" style={{ color: '#F44336' }}>
                   Min: {minEntry?.value?.toFixed(2) ?? 'N/A'}
                 </Typography>
-                <Typography variant="body2" style={{ color: medianEntry?.color || '#3BB982' }}>
+                <Typography variant="body2" style={{ color: medianEntry?.color ?? '#3BB982' }}>
                   Median: {medianEntry?.value?.toFixed(2) ?? 'N/A'}
                 </Typography>
                 <Typography variant="body2" style={{ color: '#2196F3' }}>
@@ -374,14 +374,14 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
   };
 
   const customTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
-    if (active && payload && payload.length) {
+    if (active && payload?.length) {
       return (
         <Paper sx={{ p: 2 }}>
           <Typography variant="body2" color="textSecondary">
             {label}
           </Typography>
           {payload.map((entry) => {
-            const dataKey = String(entry.dataKey || '');
+            const dataKey = String(entry.dataKey ?? '');
             const isNormalizedValue = dataKey.endsWith('_normalized');
             const baseKey = isNormalizedValue 
               ? dataKey.replace('_normalized', '')
@@ -515,7 +515,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 // Min line
                 lines.push(
                   <Line
-                    key={`min-line-${index}`}
+                    key={`min-line-${activity}`}
                     type="monotone"
                     dataKey={minKey}
                     name={`${activity} (Min)`}
@@ -532,7 +532,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 // Max line
                 lines.push(
                   <Line
-                    key={`max-line-${index}`}
+                    key={`max-line-${activity}`}
                     type="monotone"
                     dataKey={maxKey}
                     name={`${activity} (Max)`}
@@ -549,7 +549,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 // Median line - the primary line
                 lines.push(
                   <Line
-                    key={`median-line-${index}`}
+                    key={`median-line-${activity}`}
                     type="monotone"
                     dataKey={medianKey}
                     name={`${activity} (Median)`}

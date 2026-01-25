@@ -48,6 +48,16 @@ interface UserDoc {
   birthdate?: string;
 }
 
+interface FirebaseUserData {
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  createdAt?: string;
+  tags?: string[];
+  gender?: string;
+  birthdate?: string;
+}
+
 // Helper function to get full name
 const getFullName = (user: UserDoc): string => {
   return `${user.firstName} ${user.lastName}`.trim();
@@ -80,19 +90,20 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       
       snapshot.docs.forEach(doc => {
         try {
-          const userData = doc.data();
+          const userData = doc.data() as FirebaseUserData;
           // Handle migration: support both old (name) and new (firstName/lastName) format
-          let firstName = userData.firstName || '';
-          let lastName = userData.lastName || '';
+          let firstName = userData.firstName ?? '';
+          let lastName = userData.lastName ?? '';
           
           // If old format exists, split it
           if (!firstName && !lastName && userData.name) {
-            const parts = userData.name.trim().split(/\s+/);
+            const nameStr = String(userData.name);
+            const parts = nameStr.trim().split(/\s+/);
             if (parts.length === 1) {
-              firstName = parts[0];
+              firstName = parts[0] ?? '';
               lastName = '';
             } else if (parts.length > 1) {
-              lastName = parts[parts.length - 1];
+              lastName = parts[parts.length - 1] ?? '';
               firstName = parts.slice(0, -1).join(' ');
             }
           }
@@ -105,10 +116,10 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
           
           const user: UserDoc = {
             id: doc.id,
-            firstName: firstName || '',
-            lastName: lastName || '',
-            createdAt: userData.createdAt || new Date().toISOString(),
-            tags: userData.tags || [],
+            firstName: firstName ?? '',
+            lastName: lastName ?? '',
+            createdAt: userData.createdAt ?? new Date().toISOString(),
+            tags: userData.tags ?? [],
             gender: userData.gender,
             birthdate: userData.birthdate
           };
@@ -129,17 +140,18 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       const deletionPromises: Promise<void>[] = [];
       snapshot.docs.forEach(doc => {
         try {
-          const userData = doc.data();
-          let firstName = userData.firstName || '';
-          let lastName = userData.lastName || '';
+          const userData = doc.data() as FirebaseUserData;
+          let firstName = userData.firstName ?? '';
+          let lastName = userData.lastName ?? '';
           
           if (!firstName && !lastName && userData.name) {
-            const parts = userData.name.trim().split(/\s+/);
+            const nameStr = String(userData.name);
+            const parts = nameStr.trim().split(/\s+/);
             if (parts.length === 1) {
-              firstName = parts[0];
+              firstName = parts[0] ?? '';
               lastName = '';
             } else if (parts.length > 1) {
-              lastName = parts[parts.length - 1];
+              lastName = parts[parts.length - 1] ?? '';
               firstName = parts.slice(0, -1).join(' ');
             }
           }
@@ -172,7 +184,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       
       // Extract all unique tags from all users
       const allTags = Array.from(
-        new Set(uniqueUsers.flatMap(user => user.tags || []))
+        new Set(uniqueUsers.flatMap(user => user.tags ?? []))
       ).sort();
       setAllExistingTags(allTags);
       
@@ -184,7 +196,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   };
 
   useEffect(() => {
-    loadUsers();
+    void loadUsers();
   }, [refreshTrigger]);
 
   const handleRegister = async () => {
@@ -261,7 +273,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
 
   // Get all unique tags from all users
   const allTags = Array.from(
-    new Set(users.flatMap(user => user.tags || []))
+        new Set(users.flatMap(user => user.tags ?? []))
   ).sort();
 
   const filteredUsers = users.filter(user => {
@@ -271,7 +283,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       fullName.toLowerCase().includes(searchLower) ||
       user.firstName.toLowerCase().includes(searchLower) ||
       user.lastName.toLowerCase().includes(searchLower);
-    const matchesTag = !selectedTagFilter || (user.tags || []).includes(selectedTagFilter);
+    const matchesTag = !selectedTagFilter || (user.tags ?? []).includes(selectedTagFilter);
     return matchesSearch && matchesTag;
   });
 
@@ -433,7 +445,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                   setShowRegisterDialog(true);
                 }}
               >
-                Register "{searchTerm.trim()}"
+                Register &quot;{searchTerm.trim()}&quot;
               </Button>
             </Box>
           )}

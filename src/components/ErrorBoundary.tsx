@@ -46,7 +46,7 @@ class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </Typography>
             <Typography variant="body1" sx={{ mb: 2, mt: 2 }}>
-              {this.state.error?.message || 'An unexpected error occurred'}
+              {this.state.error?.message ?? 'An unexpected error occurred'}
             </Typography>
             {this.state.error?.stack && (
               <Box

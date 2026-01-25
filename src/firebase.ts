@@ -5,12 +5,12 @@ import { getAnalytics, logEvent, Analytics } from 'firebase/analytics';
 
 // Helper function to get env var and strip quotes if present
 const getEnvVar = (key: string): string => {
-  const value = import.meta.env[key];
+  const value = import.meta.env[key] as unknown;
   if (typeof value === 'string') {
     // Remove surrounding quotes if present
     return value.replace(/^["']|["']$/g, '');
   }
-  return value || '';
+  return '';
 };
 
 const firebaseConfig = {

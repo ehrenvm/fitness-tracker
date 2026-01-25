@@ -45,7 +45,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
         
         {user && (
           <Typography variant="body1" sx={{ mr: 2 }}>
-            {user.email || user.displayName || 'User'}
+            {user.email ?? user.displayName ?? 'User'}
           </Typography>
         )}
 
@@ -59,7 +59,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ onAdminClick }) => {
           </IconButton>
           <IconButton
             color="inherit"
-            onClick={handleLogout}
+            onClick={() => { void handleLogout(); }}
             size="large"
           >
             <LogoutIcon />

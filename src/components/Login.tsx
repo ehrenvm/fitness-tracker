@@ -70,7 +70,7 @@ const Login: React.FC = () => {
                 </Typography>
               )}
 
-              <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
+              <Box component="form" onSubmit={(e) => { e.preventDefault(); void handleSubmit(e); }} sx={{ mt: 1, width: '100%' }}>
                 <TextField
                   margin="normal"
                   required

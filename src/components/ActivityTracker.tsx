@@ -100,14 +100,17 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         const activitiesRef = doc(db, 'config', 'activities');
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
-          setActivities(activitiesDoc.data().list);
+          const data = activitiesDoc.data();
+          if (data && 'list' in data && Array.isArray(data.list)) {
+            setActivities(data.list as string[]);
+          }
         }
       } catch (error) {
         console.error('Error loading activities:', error);
       }
     };
 
-    loadActivities();
+    void loadActivities();
   }, []);
 
   // Load user data (gender and birthdate) from Firebase - only for single user
@@ -143,7 +146,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         });
         
         if (matchingUser) {
-          const userData = matchingUser.data();
+          const userData = matchingUser.data() as { gender?: string; birthdate?: string };
           setUserGender(userData.gender);
           setUserBirthdate(userData.birthdate);
         } else {
@@ -157,7 +160,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       }
     };
 
-    loadUserData();
+    void loadUserData();
   }, [userNames]);
 
   // Add a shared sorting function
@@ -224,7 +227,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   }, [userNames, selectedActivities, sortResults]);
 
   useEffect(() => {
-    loadResults();
+    void loadResults();
   }, [loadResults]);
 
   const handleActivityChange = (event: SelectChangeEvent<string>) => {
@@ -311,7 +314,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       setTimeout(() => setSuccess(false), 3000);
       setValue({ value1: '', value2: '' });
       setEntryDate("");
-      loadResults();
+      void loadResults();
     } catch (error) {
       console.error('Error adding result:', error);
       setError('Failed to add result. Please try again.');
@@ -402,7 +405,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                 <Typography variant="h6" gutterBottom>
                   Add New Activity
                 </Typography>
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(e); }}>
                   <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel>Activity</InputLabel>
                     <Select

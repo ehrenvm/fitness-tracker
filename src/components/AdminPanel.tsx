@@ -167,7 +167,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadAllResults();
+      void loadAllResults();
     }
   }, [isAuthenticated]);
 
@@ -254,8 +254,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to set admin claim');
+        const errorData = await response.json() as { error?: string };
+        throw new Error(errorData.error ?? 'Failed to set admin claim');
       }
 
       // Force token refresh to get the new claims
@@ -378,7 +378,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         const activitiesRef = doc(db, 'config', 'activities');
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
-          setActivities(activitiesDoc.data().list);
+          const data = activitiesDoc.data();
+          if (data && 'list' in data && Array.isArray(data.list)) {
+            setActivities(data.list as string[]);
+          }
         } else {
           // Initialize activities in Firebase if they don't exist
           await setDoc(activitiesRef, { list: ACTIVITIES });
@@ -390,7 +393,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     };
 
     if (isAuthenticated) {
-      loadActivities();
+      void loadActivities();
     }
   }, [isAuthenticated]);
 
@@ -399,18 +402,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const usersRef = collection(db, 'users');
       const querySnapshot = await getDocs(usersRef);
       const loadedUsers = querySnapshot.docs.map(doc => {
-        const data = doc.data();
+        const data = doc.data() as {
+          firstName?: string;
+          lastName?: string;
+          name?: string;
+          createdAt?: string;
+          tags?: string[];
+          gender?: string;
+          birthdate?: string;
+        };
         // Handle migration: support both old and new format
-        let firstName = data.firstName || '';
-        let lastName = data.lastName || '';
+        let firstName = data.firstName ?? '';
+        let lastName = data.lastName ?? '';
         
         if (!firstName && !lastName && data.name) {
-          const parts = data.name.trim().split(/\s+/);
+          const nameStr = String(data.name);
+          const parts = nameStr.trim().split(/\s+/);
           if (parts.length === 1) {
-            firstName = parts[0];
+            firstName = parts[0] ?? '';
             lastName = '';
           } else if (parts.length > 1) {
-            lastName = parts[parts.length - 1];
+            lastName = parts[parts.length - 1] ?? '';
             firstName = parts.slice(0, -1).join(' ');
           }
         }
@@ -419,8 +431,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           id: doc.id,
           firstName,
           lastName,
-          createdAt: data.createdAt,
-          tags: data.tags || [],
+          createdAt: data.createdAt ?? new Date().toISOString(),
+          tags: data.tags ?? [],
           gender: data.gender,
           birthdate: data.birthdate
         };
@@ -437,7 +449,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       
       // Extract all unique tags from all users
       const allTags = Array.from(
-        new Set(loadedUsers.flatMap(user => user.tags || []))
+        new Set(loadedUsers.flatMap(user => user.tags ?? []))
       ).sort();
       setAllExistingTags(allTags);
     } catch (error) {
@@ -482,7 +494,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditTags = (user: User) => {
     setSelectedUserForTags(user);
-    setUserTags(user.tags || []);
+    setUserTags(user.tags ?? []);
     setEditTagsDialog(true);
   };
 
@@ -503,7 +515,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
     try {
       // Find all users with this tag
-      const usersWithTag = users.filter(user => user.tags && user.tags.includes(tagToEdit));
+      const usersWithTag = users.filter(user => user.tags?.includes(tagToEdit));
       
       if (usersWithTag.length === 0) {
         setEditTagDialog(false);
@@ -541,7 +553,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const handleDeleteTag = async (tag: string) => {
     try {
       // Find all users with this tag
-      const usersWithTag = users.filter(user => user.tags && user.tags.includes(tag));
+      const usersWithTag = users.filter(user => user.tags?.includes(tag));
       
       if (usersWithTag.length === 0) {
         setConfirmDeleteTag(null);
@@ -600,7 +612,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const selectedUserObjects = users.filter(user => selectedUsers.has(user.id));
       const updatePromises = selectedUserObjects.map(user => {
         const userRef = doc(db, 'users', user.id);
-        const currentTags = user.tags || [];
+        const currentTags = user.tags ?? [];
         // Only add tag if it doesn't already exist
         if (!currentTags.includes(tagToAdd)) {
           const updatedTags = [...currentTags, tagToAdd];
@@ -688,10 +700,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditUser = (user: User) => {
     setSelectedUserForEdit(user);
-    setEditUserFirstName(user.firstName || '');
-    setEditUserLastName(user.lastName || '');
-    setEditUserGender(user.gender || '');
-    setEditUserBirthdate(user.birthdate || '');
+    setEditUserFirstName(user.firstName ?? '');
+    setEditUserLastName(user.lastName ?? '');
+    setEditUserGender(user.gender ?? '');
+    setEditUserBirthdate(user.birthdate ?? '');
     setEditUserDialog(true);
   };
 
@@ -768,8 +780,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             ...u,
             firstName: newFirstName,
             lastName: newLastName,
-            gender: editUserGender || undefined,
-            birthdate: editUserBirthdate || undefined
+            gender: editUserGender ?? undefined,
+            birthdate: editUserBirthdate ?? undefined
           } : u
         )
       );
@@ -803,21 +815,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               Admin Login
             </Typography>
           </Box>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+          <Box component="form" onSubmit={(e) => { e.preventDefault(); void handleLogin(); }}>
             <TextField
               fullWidth
               type="password"
               label="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); void handleLogin(); } }}
               margin="normal"
             />
             <Button
               fullWidth
               variant="contained"
               color="primary"
-              onClick={handleLogin}
+              onClick={() => { void handleLogin(); }}
               sx={{ mt: 2 }}
             >
               Login
@@ -921,7 +933,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                           size="small"
                           variant="outlined"
                           color="primary"
-                          onClick={() => handleEdit(result)}
+                          onClick={() => { handleEdit(result); }}
                         >
                           Edit
                         </Button>
@@ -929,7 +941,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                           size="small"
                           variant="outlined"
                           color="error"
-                          onClick={() => handleDeleteResult(result.id)}
+                          onClick={() => { void handleDeleteResult(result.id); }}
                         >
                           Delete
                         </Button>
@@ -996,8 +1008,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       />
                     </TableCell>
                     <TableCell>{getFullName(user)}</TableCell>
-                    <TableCell>{user.gender || '-'}</TableCell>
-                    <TableCell>{user.birthdate || '-'}</TableCell>
+                    <TableCell>{user.gender ?? '-'}</TableCell>
+                    <TableCell>{user.birthdate ?? '-'}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {user.tags && user.tags.length > 0 ? (
@@ -1108,13 +1120,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           </Box>
           {allExistingTags.length === 0 ? (
             <Typography variant="body2" color="text.secondary">
-              No tags exist yet. Click "Add Tag" to create your first tag.
+              No tags exist yet. Click &quot;Add Tag&quot; to create your first tag.
             </Typography>
           ) : (
             <List>
               {allExistingTags.map((tag) => {
                 // Count how many users have this tag
-                const userCount = users.filter(user => user.tags && user.tags.includes(tag)).length;
+                const userCount = users.filter(user => user.tags?.includes(tag)).length;
                 return (
                   <ListItem key={tag}>
                     <ListItemText 
@@ -1157,7 +1169,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             Are you sure you want to remove {confirmDeleteUser ? getFullName(confirmDeleteUser) : ''}? This will permanently delete:
           </Typography>
           <Box component="ul" sx={{ mt: 1 }}>
-            <li>The user's profile</li>
+            <li>The user&apos;s profile</li>
             <li>All of their activity history</li>
           </Box>
           <Typography color="error" sx={{ mt: 2 }}>
@@ -1169,7 +1181,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Button
             color="error"
             variant="contained"
-            onClick={() => confirmDeleteUser && handleDeleteUser(confirmDeleteUser)}
+            onClick={() => { if (confirmDeleteUser) { void handleDeleteUser(confirmDeleteUser); } }}
           >
             Delete User
           </Button>
@@ -1187,8 +1199,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             Activity name formats:
-            • Single unit: "Activity (unit)" - e.g., "Running (km)", "Deadlift (lbs)"
-            • Compound units: "Activity (unit1/unit2)" - e.g., "Height (ft/in)", "Duration (min/sec)"
+            • Single unit: &quot;Activity (unit)&quot; - e.g., &quot;Running (km)&quot;, &quot;Deadlift (lbs)&quot;
+            • Compound units: &quot;Activity (unit1/unit2)&quot; - e.g., &quot;Height (ft/in)&quot;, &quot;Duration (min/sec)&quot;
           </Typography>
           <TextField
             autoFocus
@@ -1205,7 +1217,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogActions>
           <Button onClick={() => setAddActivityDialog(false)}>Cancel</Button>
           <Button
-            onClick={handleAddActivity}
+            onClick={() => { void handleAddActivity(); }}
             color="primary"
             disabled={!newActivity.trim()}
           >
@@ -1260,7 +1272,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialog(false)}>Cancel</Button>
-          <Button onClick={handleSaveEdit} color="primary">
+          <Button onClick={() => { void handleSaveEdit(); }} color="primary">
             Save
           </Button>
         </DialogActions>
@@ -1325,7 +1337,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           >
             Cancel
           </Button>
-          <Button onClick={handleSaveTags} color="primary" variant="contained">
+          <Button onClick={() => { void handleSaveTags(); }} color="primary" variant="contained">
             Save Tags
           </Button>
         </DialogActions>
@@ -1423,7 +1435,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           >
             Cancel
           </Button>
-          <Button onClick={handleSaveUser} color="primary" variant="contained">
+          <Button onClick={() => { void handleSaveUser(); }} color="primary" variant="contained">
             Save
           </Button>
         </DialogActions>
@@ -1452,7 +1464,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogActions>
           <Button onClick={() => setEditActivityDialog(false)}>Cancel</Button>
           <Button
-            onClick={handleSaveActivity}
+            onClick={() => { void handleSaveActivity(); }}
             color="primary"
             variant="contained"
             disabled={!editActivityName.trim()}
@@ -1504,7 +1516,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             Cancel
           </Button>
           <Button
-            onClick={handleSaveTag}
+            onClick={() => { void handleSaveTag(); }}
             color="primary"
             variant="contained"
             disabled={!editTagName.trim() || editTagName.trim() === tagToEdit}
@@ -1524,7 +1536,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogTitle>Confirm Tag Deletion</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete the tag <strong>"{confirmDeleteTag}"</strong>?
+            Are you sure you want to delete the tag <strong>&quot;{confirmDeleteTag}&quot;</strong>?
           </Typography>
           {confirmDeleteTag && (
             <Box sx={{ mt: 2 }}>
@@ -1533,15 +1545,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
               </Typography>
               <Box component="ul" sx={{ mt: 1, mb: 0 }}>
                 {users
-                  .filter(user => user.tags && user.tags.includes(confirmDeleteTag))
+                  .filter(user => user.tags?.includes(confirmDeleteTag))
                   .slice(0, 10)
                   .map(user => (
                     <li key={user.id}>{getFullName(user)}</li>
                   ))}
-                {users.filter(user => user.tags && user.tags.includes(confirmDeleteTag)).length > 10 && (
+                {users.filter(user => user.tags?.includes(confirmDeleteTag)).length > 10 && (
                   <li>
                     <Typography variant="body2" color="text.secondary">
-                      ... and {users.filter(user => user.tags && user.tags.includes(confirmDeleteTag)).length - 10} more
+                      ... and {users.filter(user => user.tags?.includes(confirmDeleteTag)).length - 10} more
                     </Typography>
                   </li>
                 )}
@@ -1557,7 +1569,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <Button
             color="error"
             variant="contained"
-            onClick={() => confirmDeleteTag && handleDeleteTag(confirmDeleteTag)}
+            onClick={() => { if (confirmDeleteTag) { void handleDeleteTag(confirmDeleteTag); } }}
           >
             Delete Tag
           </Button>
@@ -1585,7 +1597,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             options={allExistingTags}
             value={bulkTagToAdd}
             onChange={(event, newValue) => {
-              setBulkTagToAdd(newValue || '');
+              setBulkTagToAdd(newValue ?? '');
             }}
             onInputChange={(event, newInputValue) => {
               setBulkTagToAdd(newInputValue);
@@ -1612,7 +1624,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             Cancel
           </Button>
           <Button
-            onClick={handleBulkAddTag}
+            onClick={() => { void handleBulkAddTag(); }}
             color="primary"
             variant="contained"
             disabled={!bulkTagToAdd.trim() || selectedUsers.size === 0}
@@ -1636,14 +1648,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogTitle>Create New Tag</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Create a new tag name. After creating, you'll be able to assign it to users.
+            Create a new tag name. After creating, you&apos;ll be able to assign it to users.
           </Typography>
           <Autocomplete
             freeSolo
             options={allExistingTags}
             value={newTagName}
             onChange={(event, newValue) => {
-              setNewTagName(newValue || '');
+              setNewTagName(newValue ?? '');
             }}
             onInputChange={(event, newInputValue) => {
               setNewTagName(newInputValue);
