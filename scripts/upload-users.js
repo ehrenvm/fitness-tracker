@@ -56,18 +56,18 @@ async function uploadUsers(yamlFilePath) {
     // Check for existing users to avoid duplicates
     console.log('Checking for existing users...');
     const existingUsersSnapshot = await db.collection('users').get();
-    const existingUsers = new Set();
+    const existingUsers = new Map(); // Map of fullName (lowercase) -> { docId, data }
     existingUsersSnapshot.forEach(doc => {
       const data = doc.data();
       const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
-      existingUsers.add(fullName.toLowerCase());
+      existingUsers.set(fullName.toLowerCase(), { docId: doc.id, data });
     });
     console.log(`Found ${existingUsers.size} existing users in database.\n`);
     
     // Upload users
     let added = 0;
     let skipped = 0;
-    const batch = db.batch();
+    let batch = db.batch();
     let batchCount = 0;
     const BATCH_SIZE = 500; // Firestore batch limit
     
@@ -88,7 +88,41 @@ async function uploadUsers(yamlFilePath) {
       
       // Check for duplicates
       if (existingUsers.has(fullNameLower)) {
-        console.log(`⏭️  Skipping user ${i + 1}: "${fullName}" already exists`);
+        const existingUser = existingUsers.get(fullNameLower);
+        const existingData = existingUser.data;
+        let needsUpdate = false;
+        const updateData = {};
+        
+        // Check if gender is missing in database but present in YAML
+        if (!existingData.gender && user.gender) {
+          updateData.gender = user.gender;
+          needsUpdate = true;
+        }
+        
+        // Check if birthdate is missing in database but present in YAML
+        if (!existingData.birthdate && user.birthdate) {
+          // Validate birthdate format if provided
+          const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+          if (dateRegex.test(user.birthdate)) {
+            updateData.birthdate = user.birthdate;
+            needsUpdate = true;
+          } else {
+            console.log(`⚠️  Skipping birthdate update for "${fullName}": Invalid format (expected MM/DD/YYYY)`);
+          }
+        }
+        
+        if (needsUpdate) {
+          try {
+            const userRef = db.collection('users').doc(existingUser.docId);
+            await userRef.update(updateData);
+            const updatedFields = Object.keys(updateData).join(', ');
+            console.log(`🔄 Updated user "${fullName}": Added missing field(s) - ${updatedFields}`);
+          } catch (error) {
+            console.log(`⚠️  Failed to update user "${fullName}": ${error.message}`);
+          }
+        }
+        
+        console.log(`⏭️  Skipping user ${i + 1}: "${fullName}" already exists${needsUpdate ? ' (updated missing fields)' : ''}`);
         skipped++;
         continue;
       }
@@ -123,7 +157,9 @@ async function uploadUsers(yamlFilePath) {
       // Add to batch
       const userRef = db.collection('users').doc();
       batch.set(userRef, userDoc);
-      existingUsers.add(fullNameLower); // Track in this batch to avoid duplicates within the file
+      // Track in this batch to avoid duplicates within the file
+      // We'll update the Map after the batch is committed with the actual doc ID
+      existingUsers.set(fullNameLower, { docId: userRef.id, data: userDoc });
       batchCount++;
       added++;
       
@@ -134,6 +170,8 @@ async function uploadUsers(yamlFilePath) {
         await batch.commit();
         console.log(`\n💾 Committed batch of ${batchCount} users...\n`);
         batchCount = 0;
+        // Create a new batch for the next set of users
+        batch = db.batch();
       }
     }
     
