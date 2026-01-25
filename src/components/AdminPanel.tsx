@@ -320,11 +320,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   }, [activities]);
 
-  const handleEditActivity = (activity: string) => {
+  const handleEditActivity = useCallback((activity: string) => {
     setActivityToEdit(activity);
     setEditActivityName(activity);
     setEditActivityDialog(true);
-  };
+  }, []);
 
   const handleSaveActivity = useCallback(async () => {
     if (!activityToEdit || !editActivityName.trim()) return;
@@ -490,7 +490,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting user:', error);
       setError('Failed to delete user. Please try again.');
     }
-  }, [onUserDeleted, loadUsers]);
+  }, [onUserDeleted]);
 
   const handleEditTags = useCallback((user: User) => {
     setSelectedUserForTags(user);
@@ -702,7 +702,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating tags:', error);
       setError('Failed to update tags. Please try again.');
     }
-  }, [selectedUserForTags, userTags, loadUsers]);
+  }, [selectedUserForTags, userTags]);
 
   const handleEditUser = useCallback((user: User) => {
     setSelectedUserForEdit(user);
@@ -809,7 +809,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating user:', error);
       setError('Failed to update user. Please try again.');
     }
-  }, [selectedUserForEdit, editUserFirstName, editUserLastName, editUserGender, editUserBirthdate, users, loadAllResults]);
+  }, [selectedUserForEdit, editUserFirstName, editUserLastName, editUserGender, editUserBirthdate, loadAllResults]);
 
   const handleLoginFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
