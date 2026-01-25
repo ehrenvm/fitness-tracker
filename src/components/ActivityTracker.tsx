@@ -231,7 +231,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     void loadResults();
   }, [loadResults]);
 
-  const handleActivityChange = (event: SelectChangeEvent<string>) => {
+  const handleActivityChange = (event: SelectChangeEvent) => {
     setSelectedActivity(event.target.value);
     setValue({ value1: '', value2: '' }); // Reset both values when activity changes
   };

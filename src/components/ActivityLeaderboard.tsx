@@ -134,14 +134,14 @@ const ActivityLeaderboard: React.FC = () => {
       }));
     }
 
-    const userGroups = activityResults.reduce((groups, result) => {
+    const userGroups = activityResults.reduce<{ [key: string]: Result[] }>((groups, result) => {
       // Initialize array if it doesn't exist
       if (!(result.userName in groups)) {
         groups[result.userName] = [];
       }
       groups[result.userName].push(result);
       return groups;
-    }, {} as { [key: string]: Result[] });
+    }, {});
 
     return Object.entries(userGroups).map(([, userResults]) => {
       let selectedResult: Result;
