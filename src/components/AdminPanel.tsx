@@ -459,7 +459,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   };
   useEffect(() => {
     if (isAuthenticated) {
-      loadUsers();
+      void loadUsers();
     }
   }, [isAuthenticated]);
 

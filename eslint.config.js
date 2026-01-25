@@ -18,6 +18,10 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
       },
+      parserOptions: {
+        project: ['./tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       'react': react,
@@ -44,6 +48,11 @@ export default tseslint.config(
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
+      // TypeScript modern syntax (require type-checking)
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      '@typescript-eslint/prefer-optional-chain': 'error',
+      // Promise/async safety
+      '@typescript-eslint/no-floating-promises': 'error',
       // React best practices
       'react/jsx-key': ['error', { checkFragmentShorthand: true }],
       'react/no-array-index-key': 'warn',
