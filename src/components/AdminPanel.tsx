@@ -863,7 +863,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       )}
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={selectedTab} onChange={(_, newValue) => setSelectedTab(newValue)}>
+        <Tabs value={selectedTab} onChange={(_, newValue: number) => setSelectedTab(newValue)}>
           <Tab label="Activity History" />
           <Tab label="Users" />
           <Tab label="Activities" />
