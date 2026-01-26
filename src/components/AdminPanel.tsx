@@ -35,7 +35,7 @@ import {
   Checkbox
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon } from '@mui/icons-material';
-import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where, Timestamp } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
 import { ACTIVITIES } from './ActivityTracker';
@@ -397,6 +397,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   }, [isAuthenticated]);
 
+  const loadTags = useCallback(async () => {
+    try {
+      const tagsRef = collection(db, 'tags');
+      const querySnapshot = await getDocs(tagsRef);
+      const tagsFromCollection = querySnapshot.docs.map(doc => doc.id);
+      
+      // Also extract tags from users (for backward compatibility with existing data)
+      const tagsFromUsers = Array.from(
+        new Set(users.flatMap(user => user.tags ?? []))
+      );
+      
+      // Combine both sources and remove duplicates
+      const allTags = Array.from(
+        new Set([...tagsFromCollection, ...tagsFromUsers])
+      ).sort();
+      setAllExistingTags(allTags);
+    } catch (error) {
+      console.error('Error loading tags:', error);
+      // Fallback to extracting from users only
+      const tagsFromUsers = Array.from(
+        new Set(users.flatMap(user => user.tags ?? []))
+      ).sort();
+      setAllExistingTags(tagsFromUsers);
+    }
+  }, [users]);
+
   const loadUsers = useCallback(async () => {
     try {
       const usersRef = collection(db, 'users');
@@ -446,12 +472,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       });
       
       setUsers(loadedUsers);
-      
-      // Extract all unique tags from all users
-      const allTags = Array.from(
-        new Set(loadedUsers.flatMap(user => user.tags ?? []))
-      ).sort();
-      setAllExistingTags(allTags);
     } catch (error) {
       console.error('Error loading users:', error);
       setError('Failed to load users');
@@ -462,6 +482,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       void loadUsers();
     }
   }, [isAuthenticated, loadUsers]);
+
+  useEffect(() => {
+    if (isAuthenticated && users.length > 0) {
+      void loadTags();
+    }
+  }, [isAuthenticated, users, loadTags]);
 
   const handleDeleteUser = useCallback(async (user: User) => {
     try {
@@ -513,24 +539,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       return;
     }
 
+    // Check if new name already exists
+    if (allExistingTags.includes(newName)) {
+      setError(`Tag "${newName}" already exists.`);
+      return;
+    }
+
     try {
       // Find all users with this tag
       const usersWithTag = users.filter(user => user.tags?.includes(tagToEdit));
+
+      // Update tag document in Firestore (delete old, create new)
+      const oldTagRef = doc(db, 'tags', tagToEdit);
+      const newTagRef = doc(db, 'tags', newName);
       
-      if (usersWithTag.length === 0) {
-        setEditTagDialog(false);
-        return;
-      }
+      // Get the old tag document to preserve createdAt if needed
+      const oldTagDoc = await getDoc(oldTagRef);
+      const oldTagData = oldTagDoc.data() as { createdAt?: Timestamp } | undefined;
+      
+      // Create new tag document
+      await setDoc(newTagRef, {
+        name: newName,
+        createdAt: oldTagData?.createdAt ?? Timestamp.now()
+      });
+      
+      // Delete old tag document
+      await deleteDoc(oldTagRef);
 
       // Update all users with this tag
-      const updatePromises = usersWithTag.map(user => {
-        const userRef = doc(db, 'users', user.id);
-        // tags is guaranteed to exist because usersWithTag only contains users with the tag
-        const updatedTags = (user.tags ?? []).map(tag => tag === tagToEdit ? newName : tag);
-        return updateDoc(userRef, { tags: updatedTags });
-      });
+      if (usersWithTag.length > 0) {
+        const updatePromises = usersWithTag.map(user => {
+          const userRef = doc(db, 'users', user.id);
+          // tags is guaranteed to exist because usersWithTag only contains users with the tag
+          const updatedTags = (user.tags ?? []).map(tag => tag === tagToEdit ? newName : tag);
+          return updateDoc(userRef, { tags: updatedTags });
+        });
 
-      await Promise.all(updatePromises);
+        await Promise.all(updatePromises);
+      }
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'rename_tag',
@@ -539,37 +585,40 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         usersUpdated: usersWithTag.length
       });
 
-      // Reload users to reflect changes
+      // Reload tags and users to reflect changes
+      await loadTags();
       await loadUsers();
       
       setEditTagDialog(false);
       setTagToEdit(null);
       setEditTagName('');
+      setError(null);
     } catch (error) {
       console.error('Error renaming tag:', error);
       setError('Failed to rename tag. Please try again.');
     }
-  }, [tagToEdit, editTagName, users, loadUsers]);
+  }, [tagToEdit, editTagName, users, allExistingTags, loadTags, loadUsers]);
 
   const handleDeleteTag = useCallback(async (tag: string) => {
     try {
       // Find all users with this tag
       const usersWithTag = users.filter(user => user.tags?.includes(tag));
-      
-      if (usersWithTag.length === 0) {
-        setConfirmDeleteTag(null);
-        return;
-      }
 
       // Remove tag from all users
-      const updatePromises = usersWithTag.map(user => {
-        const userRef = doc(db, 'users', user.id);
-        // tags is guaranteed to exist because usersWithTag only contains users with the tag
-        const updatedTags = (user.tags ?? []).filter(t => t !== tag);
-        return updateDoc(userRef, { tags: updatedTags });
-      });
+      if (usersWithTag.length > 0) {
+        const updatePromises = usersWithTag.map(user => {
+          const userRef = doc(db, 'users', user.id);
+          // tags is guaranteed to exist because usersWithTag only contains users with the tag
+          const updatedTags = (user.tags ?? []).filter(t => t !== tag);
+          return updateDoc(userRef, { tags: updatedTags });
+        });
 
-      await Promise.all(updatePromises);
+        await Promise.all(updatePromises);
+      }
+
+      // Delete tag document from Firestore
+      const tagRef = doc(db, 'tags', tag);
+      await deleteDoc(tagRef);
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'delete_tag',
@@ -577,7 +626,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         usersUpdated: usersWithTag.length
       });
 
-      // Reload users to reflect changes
+      // Reload tags and users to reflect changes
+      await loadTags();
       await loadUsers();
       
       setConfirmDeleteTag(null);
@@ -585,7 +635,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error deleting tag:', error);
       setError('Failed to delete tag. Please try again.');
     }
-  }, [users, loadUsers]);
+  }, [users, loadTags, loadUsers]);
 
   const handleToggleUserSelection = useCallback((userId: string) => {
     setSelectedUsers(prev => {
@@ -647,7 +697,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     }
   }, [bulkTagToAdd, selectedUsers, users, loadUsers]);
 
-  const handleAddTag = useCallback(() => {
+  const handleAddTag = useCallback(async () => {
     if (!newTagName.trim()) return;
 
     const tagName = newTagName.trim();
@@ -658,19 +708,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       return;
     }
 
-    // Close the add tag dialog and open bulk add dialog with the tag pre-filled
-    // This allows them to immediately assign it to users
-    setAddTagDialog(false);
-    setBulkTagToAdd(tagName);
-    setNewTagName('');
-    
-    // Switch to Users tab and open bulk add dialog
-    setSelectedTab(1);
-    // Small delay to ensure tab switch completes
-    setTimeout(() => {
-      setBulkAddTagDialog(true);
-    }, 100);
-  }, [newTagName, allExistingTags]);
+    try {
+      // Create tag document in Firestore (using tag name as document ID)
+      const tagRef = doc(db, 'tags', tagName);
+      await setDoc(tagRef, {
+        name: tagName,
+        createdAt: Timestamp.now()
+      });
+
+      logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
+        action: 'create_tag',
+        tagName: tagName
+      });
+
+      // Reload tags to reflect the new tag
+      await loadTags();
+      
+      // Close the dialog and clear the input
+      setAddTagDialog(false);
+      setNewTagName('');
+      setError(null);
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      setError('Failed to create tag. Please try again.');
+    }
+  }, [newTagName, allExistingTags, loadTags]);
 
   const handleSaveTags = useCallback(async () => {
     if (!selectedUserForTags) return;
@@ -963,8 +1025,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     <TextField
       {...(params as Record<string, unknown>)}
       label="Tags"
-      placeholder="Type to add tags or select existing"
-      helperText="Select from existing tags or type to create a new one"
+      placeholder="Select existing tags"
+      helperText="Select from existing tags. To create new tags, go to the Tags panel."
     />
   ), []);
 
@@ -1114,7 +1176,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   }, []);
 
   const handleAddTagClick = useCallback(() => {
-    handleAddTag();
+    void handleAddTag();
   }, [handleAddTag]);
 
   const createToggleUserSelectionHandler = useCallback((userId: string) => {
@@ -1610,7 +1672,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Add tags to group users (e.g., #teamstars2026, #event2026). Tags are case-sensitive. Existing tags are shown as suggestions.
+            Add tags to group users (e.g., #teamstars2026, #event2026). Tags are case-sensitive. To create new tags, go to the Tags panel.
           </Typography>
 
           <Autocomplete
@@ -1900,7 +1962,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             variant="contained"
             disabled={!newTagName.trim() || allExistingTags.includes(newTagName.trim())}
           >
-            Create & Assign
+            Create
           </Button>
         </DialogActions>
       </Dialog>

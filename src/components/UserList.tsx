@@ -183,11 +183,30 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       });
       setUsers(uniqueUsers);
       
-      // Extract all unique tags from all users
-      const allTags = Array.from(
-        new Set(uniqueUsers.flatMap(user => user.tags ?? []))
-      ).sort();
-      setAllExistingTags(allTags);
+      // Load tags from tags collection
+      try {
+        const tagsRef = collection(db, 'tags');
+        const tagsSnapshot = await getDocs(tagsRef);
+        const tagsFromCollection = tagsSnapshot.docs.map(doc => doc.id);
+        
+        // Also extract tags from users (for backward compatibility with existing data)
+        const tagsFromUsers = Array.from(
+          new Set(uniqueUsers.flatMap(user => user.tags ?? []))
+        );
+        
+        // Combine both sources and remove duplicates
+        const allTags = Array.from(
+          new Set([...tagsFromCollection, ...tagsFromUsers])
+        ).sort();
+        setAllExistingTags(allTags);
+      } catch (error) {
+        console.error('Error loading tags:', error);
+        // Fallback to extracting from users only
+        const allTags = Array.from(
+          new Set(uniqueUsers.flatMap(user => user.tags ?? []))
+        ).sort();
+        setAllExistingTags(allTags);
+      }
       
       setLoading(false);
     } catch (error) {
