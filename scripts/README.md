@@ -43,7 +43,39 @@ node scripts/migrate-to-firstname-lastname.js
 
 ---
 
-### 2. `csv-to-yaml.js`
+### 2. `migrate-tags-to-collection.js`
+
+**Purpose:** One-time migration script that moves existing tags from user documents to the new `tags` collection in Firestore.
+
+**What it does:**
+- Scans all user documents to extract unique tags
+- Creates tag documents in the `tags` collection for each unique tag
+- Skips tags that already exist in the tags collection
+- Preserves existing tag assignments on users (doesn't modify user documents)
+
+**Usage:**
+```bash
+npm run migrate:tags-to-collection
+```
+
+Or directly:
+```bash
+node scripts/migrate-tags-to-collection.js
+```
+
+**When to use:**
+- One-time migration after implementing the tags collection feature
+- Should be run once to populate the tags collection with existing tags
+- Safe to run multiple times (idempotent - skips existing tags)
+
+**Notes:**
+- Only creates tags that don't already exist in the tags collection
+- Uses batched writes for efficiency
+- Provides detailed progress and summary information
+
+---
+
+### 3. `csv-to-yaml.js`
 
 **Purpose:** Converts CSV files containing user data into YAML format for bulk upload.
 
@@ -90,7 +122,7 @@ Creates a YAML file in the format expected by `upload-users.js`
 
 ---
 
-### 3. `upload-users.js`
+### 4. `upload-users.js`
 
 **Purpose:** Bulk uploads users from a YAML file to Firebase.
 

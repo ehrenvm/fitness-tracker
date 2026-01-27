@@ -19,9 +19,10 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Chip,
-  OutlinedInput
+  OutlinedInput,
+  InputAdornment
 } from '@mui/material';
-import { ArrowUpward, ArrowDownward } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward, CalendarToday } from '@mui/icons-material';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db, logAnalyticsEvent, auth } from '../firebase';
 import { ANALYTICS_EVENTS } from '../constants/analytics';
@@ -234,7 +235,15 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const handleActivityChange = useCallback((event: SelectChangeEvent) => {
     setSelectedActivity(event.target.value);
     setValue({ value1: '', value2: '' }); // Reset both values when activity changes
-  }, []);
+    // Set date to today if no date is currently set
+    if (!entryDate && event.target.value) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      setEntryDate(`${year}-${month}-${day}`);
+    }
+  }, [entryDate]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -485,6 +494,14 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   fullWidth
                   sx={{ mb: 2 }}
                   InputLabelProps={{ shrink: true }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <CalendarToday sx={{ color: 'action.active', cursor: 'pointer' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  helperText="Click the calendar icon to select a date"
                 />
 
                 <Button
