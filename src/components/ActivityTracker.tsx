@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   TextField,
   Button,
@@ -93,6 +93,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const [entryDate, setEntryDate] = useState<string>("");
   const [userGender, setUserGender] = useState<string | undefined>(undefined);
   const [userBirthdate, setUserBirthdate] = useState<string | undefined>(undefined);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Load activities from Firebase
   useEffect(() => {
@@ -374,6 +375,20 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     setEntryDate(e.target.value);
   }, []);
 
+  const handleCalendarIconClick = useCallback(() => {
+    // Focus and click the date input to open the calendar picker
+    if (dateInputRef.current) {
+      dateInputRef.current.focus();
+      // showPicker() is available in modern browsers for date inputs
+      if ('showPicker' in dateInputRef.current && typeof dateInputRef.current.showPicker === 'function') {
+        void dateInputRef.current.showPicker();
+      } else {
+        // Fallback: trigger click on the input
+        dateInputRef.current.click();
+      }
+    }
+  }, []);
+
   const handleSelectedActivitiesChange = useCallback((e: SelectChangeEvent<string[]>) => {
     setSelectedActivities(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value);
   }, []);
@@ -491,13 +506,17 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   type="date"
                   value={entryDate}
                   onChange={handleEntryDateChange}
+                  inputRef={dateInputRef}
                   fullWidth
                   sx={{ mb: 2 }}
                   InputLabelProps={{ shrink: true }}
                   InputProps={{
                     endAdornment: (
                       <InputAdornment position="end">
-                        <CalendarToday sx={{ color: 'action.active', cursor: 'pointer' }} />
+                        <CalendarToday 
+                          sx={{ color: 'action.active', cursor: 'pointer' }} 
+                          onClick={handleCalendarIconClick}
+                        />
                       </InputAdornment>
                     ),
                   }}
