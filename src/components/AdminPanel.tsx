@@ -35,7 +35,7 @@ import {
   Checkbox
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon } from '@mui/icons-material';
-import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where, Timestamp, writeBatch, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
 import { ACTIVITIES } from './ActivityTracker';
@@ -66,6 +66,7 @@ interface User {
   tags?: string[];
   gender?: string;
   birthdate?: string;
+  email?: string;
 }
 
 // Helper function to get full name
@@ -79,6 +80,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [editDialog, setEditDialog] = useState(false);
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [editDate, setEditDate] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +103,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [editUserBirthdate, setEditUserBirthdate] = useState<string>('');
   const [editUserFirstName, setEditUserFirstName] = useState<string>('');
   const [editUserLastName, setEditUserLastName] = useState<string>('');
+  const [editUserEmail, setEditUserEmail] = useState<string>('');
   const [editActivityDialog, setEditActivityDialog] = useState(false);
   const [activityToEdit, setActivityToEdit] = useState<string | null>(null);
   const [editActivityName, setEditActivityName] = useState('');
@@ -113,24 +116,90 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [bulkTagToAdd, setBulkTagToAdd] = useState<string>('');
   const [addTagDialog, setAddTagDialog] = useState(false);
   const [newTagName, setNewTagName] = useState<string>('');
+  const [lastResultDoc, setLastResultDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
+  const [loadingMoreResults, setLoadingMoreResults] = useState(false);
 
-  const loadAllResults = useCallback(async () => {
+  const loadAllResults = useCallback(async (reset = true) => {
     try {
       const resultsRef = collection(db, 'results');
-      const q = query(resultsRef, orderBy('date', 'desc'));
+      const q = query(
+        resultsRef,
+        orderBy('date', 'desc'),
+        limit(101) // Load 101 to check if there are more results
+      );
       const querySnapshot = await getDocs(q);
-      const fetchedResults = querySnapshot.docs.map(doc => ({
+      
+      const fetchedResults = querySnapshot.docs.slice(0, 100).map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Result[];
-      console.log('Fetched results:', fetchedResults);
-      setResults(fetchedResults);
+      
+      // Check if there are more results (we loaded 101, so if we got 101, there are more)
+      const hasMore = querySnapshot.docs.length > 100;
+      setHasMoreResults(hasMore);
+      
+      // Store the last document for pagination
+      if (querySnapshot.docs.length > 0) {
+        setLastResultDoc(querySnapshot.docs[Math.min(99, querySnapshot.docs.length - 1)]);
+      } else {
+        setLastResultDoc(null);
+      }
+      
+      if (reset) {
+        setResults(fetchedResults);
+      } else {
+        // Append to existing results
+        setResults(prev => [...prev, ...fetchedResults]);
+      }
+      
       setError(null);
     } catch (err) {
       console.error('Error loading results:', err);
       setError('Failed to load results. Please try again.');
     }
   }, []);
+
+  const loadMoreResults = useCallback(async () => {
+    if (!lastResultDoc || loadingMoreResults) return;
+    
+    try {
+      setLoadingMoreResults(true);
+      const resultsRef = collection(db, 'results');
+      const q = query(
+        resultsRef,
+        orderBy('date', 'desc'),
+        startAfter(lastResultDoc),
+        limit(101) // Load 101 to check if there are more results
+      );
+      const querySnapshot = await getDocs(q);
+      
+      const fetchedResults = querySnapshot.docs.slice(0, 100).map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Result[];
+      
+      // Check if there are more results
+      const hasMore = querySnapshot.docs.length > 100;
+      setHasMoreResults(hasMore);
+      
+      // Update last document for next pagination
+      if (querySnapshot.docs.length > 0) {
+        setLastResultDoc(querySnapshot.docs[Math.min(99, querySnapshot.docs.length - 1)]);
+      } else {
+        setLastResultDoc(null);
+      }
+      
+      // Append to existing results
+      setResults(prev => [...prev, ...fetchedResults]);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading more results:', err);
+      setError('Failed to load more results. Please try again.');
+    } finally {
+      setLoadingMoreResults(false);
+    }
+  }, [lastResultDoc, loadingMoreResults]);
 
   // Sort results based on current sort field and direction
   const sortedResults = [...results].sort((a, b) => {
@@ -178,6 +247,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const handleEdit = useCallback((result: Result) => {
     setSelectedResult(result);
     setEditValue(result.value.toString());
+
+    // Initialize editDate in YYYY-MM-DD format from the existing ISO date
+    const existingDate = new Date(result.date);
+    if (!Number.isNaN(existingDate.getTime())) {
+      const year = existingDate.getFullYear();
+      const month = String(existingDate.getMonth() + 1).padStart(2, '0');
+      const day = String(existingDate.getDate()).padStart(2, '0');
+      setEditDate(`${year}-${month}-${day}`);
+    } else {
+      setEditDate('');
+    }
+
     setEditDialog(true);
   }, []);
 
@@ -187,9 +268,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     try {
       const resultRef = doc(db, 'results', selectedResult.id);
       const oldValue = selectedResult.value;
-      await updateDoc(resultRef, {
+      const oldDate = selectedResult.date;
+
+      // Prepare update payload
+      const updates: Partial<Result> = {
         value: Number(editValue)
-      });
+      };
+
+      let newDateIso = oldDate;
+
+      if (editDate) {
+        const [year, month, day] = editDate.split('-').map(Number);
+        const updatedDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+        if (!Number.isNaN(updatedDate.getTime())) {
+          newDateIso = updatedDate.toISOString();
+          updates.date = newDateIso;
+        }
+      }
+
+      await updateDoc(resultRef, updates);
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'edit_result',
@@ -197,7 +294,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         activity: selectedResult.activity,
         userName: selectedResult.userName,
         oldValue,
-        newValue: Number(editValue)
+        newValue: Number(editValue),
+        oldDate,
+        newDate: newDateIso
       });
 
       setEditDialog(false);
@@ -207,7 +306,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       console.error('Error updating result:', err);
       setError('Failed to update result. Please try again.');
     }
-  }, [selectedResult, editValue, loadAllResults]);
+  }, [selectedResult, editValue, editDate, loadAllResults]);
 
   const handleDeleteResult = useCallback(async (resultId: string) => {
     try {
@@ -436,6 +535,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           tags?: string[];
           gender?: string;
           birthdate?: string;
+          email?: string;
         };
         // Handle migration: support both old and new format
         let firstName = data.firstName ?? '';
@@ -460,7 +560,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           createdAt: data.createdAt ?? new Date().toISOString(),
           tags: data.tags ?? [],
           gender: data.gender,
-          birthdate: data.birthdate
+          birthdate: data.birthdate,
+          email: data.email
         };
       }) as User[];
       
@@ -773,6 +874,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     setEditUserLastName(user.lastName);
     setEditUserGender(user.gender ?? '');
     setEditUserBirthdate(user.birthdate ?? '');
+    setEditUserEmail(user.email ?? '');
     setEditUserDialog(true);
   }, []);
 
@@ -781,6 +883,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   
     const newFirstName = editUserFirstName.trim();
     const newLastName = editUserLastName.trim();
+    const newEmail = editUserEmail.trim();
     
     if (!newFirstName) {
       setError('Please enter a first name');
@@ -789,7 +892,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   
     try {
       const userRef = doc(db, 'users', selectedUserForEdit.id);
-      const updateData: Partial<User> & { gender?: string; birthdate?: string } = {};
+      const updateData: Partial<User> & { gender?: string; birthdate?: string; email?: string } = {};
   
       const oldFullName = getFullName(selectedUserForEdit);
       const newFullName = `${newFirstName} ${newLastName}`.trim();
@@ -817,22 +920,34 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         updateData.birthdate = undefined;
       }
   
+      if (newEmail) {
+        updateData.email = newEmail;
+      } else {
+        updateData.email = undefined;
+      }
+  
       await updateDoc(userRef, updateData);
   
-      // If name changed, update all results
+      // If name changed, update all results using batched writes for efficiency
       if (oldFullName !== newFullName) {
         const resultsRef = collection(db, 'results');
         const q = query(resultsRef, where('userName', '==', oldFullName));
         const querySnapshot = await getDocs(q);
   
-        const updatePromises = querySnapshot.docs.map(doc => 
-          updateDoc(doc.ref, { 
-            userName: newFullName,
-            userFirstName: newFirstName,
-            userLastName: newLastName
-          })
-        );
-        await Promise.all(updatePromises);
+        // Use batched writes (Firestore limit: 500 operations per batch)
+        const BATCH_SIZE = 500;
+        const docsToUpdate = querySnapshot.docs;
+        
+        for (let i = 0; i < docsToUpdate.length; i += BATCH_SIZE) {
+          const batch = writeBatch(db);
+          const batchDocs = docsToUpdate.slice(i, i + BATCH_SIZE);
+          
+          batchDocs.forEach(docRef => {
+            batch.update(docRef.ref, { userName: newFullName });
+          });
+          
+          await batch.commit();
+        }
       }
   
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
@@ -851,7 +966,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             lastName: newLastName,
             // Convert empty strings to undefined for optional fields
             gender: editUserGender || undefined,
-            birthdate: editUserBirthdate || undefined
+            birthdate: editUserBirthdate || undefined,
+            email: newEmail || undefined
           } : u
         )
       );
@@ -867,11 +983,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       setEditUserLastName('');
       setEditUserGender('');
       setEditUserBirthdate('');
+      setEditUserEmail('');
     } catch (error) {
       console.error('Error updating user:', error);
       setError('Failed to update user. Please try again.');
     }
-  }, [selectedUserForEdit, editUserFirstName, editUserLastName, editUserGender, editUserBirthdate, loadAllResults]);
+  }, [selectedUserForEdit, editUserFirstName, editUserLastName, editUserGender, editUserBirthdate, editUserEmail, loadAllResults]);
 
   const handleLoginFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -986,10 +1103,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleCloseEditDialog = useCallback(() => {
     setEditDialog(false);
+    setSelectedResult(null);
+    setEditValue('');
+    setEditDate('');
   }, []);
 
   const handleEditValueChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setEditValue(e.target.value);
+  }, []);
+
+  const handleEditDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditDate(e.target.value);
   }, []);
 
   const handleSaveEditClick = useCallback(() => {
@@ -1041,6 +1165,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     setEditUserLastName('');
     setEditUserGender('');
     setEditUserBirthdate('');
+    setEditUserEmail('');
   }, []);
 
   const handleEditUserFirstNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1049,6 +1174,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleEditUserLastNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setEditUserLastName(e.target.value);
+  }, []);
+
+  const handleEditUserEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditUserEmail(e.target.value);
   }, []);
 
   const handleEditUserGenderChange = useCallback((e: SelectChangeEvent) => {
@@ -1184,6 +1313,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       handleToggleUserSelection(userId);
     };
   }, [handleToggleUserSelection]);
+
+  const handleLoadMoreResultsClick = useCallback(() => {
+    void loadMoreResults();
+  }, [loadMoreResults]);
 
   if (!isAuthenticated) {
     return (
@@ -1333,6 +1466,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 </TableBody>
               </Table>
             </TableContainer>
+            {hasMoreResults ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleLoadMoreResultsClick}
+                  disabled={loadingMoreResults}
+                >
+                  {loadingMoreResults ? 'Loading...' : 'Load More (100)'}
+                </Button>
+              </Box>
+            ) : null}
           </Box>
         </>
       )}
@@ -1373,6 +1517,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                     />
                   </TableCell>
                   <TableCell>User Name</TableCell>
+                  <TableCell>Email</TableCell>
                   <TableCell>Gender</TableCell>
                   <TableCell>Birthdate</TableCell>
                   <TableCell>Tags</TableCell>
@@ -1390,6 +1535,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                       />
                     </TableCell>
                     <TableCell>{getFullName(user)}</TableCell>
+                    <TableCell>{user.email ?? '-'}</TableCell>
                     <TableCell>{user.gender ?? '-'}</TableCell>
                     <TableCell>{user.birthdate ?? '-'}</TableCell>
                     <TableCell>
@@ -1643,7 +1789,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         <DialogTitle>Edit Result</DialogTitle>
         <DialogContent>
           <TextField
-            autoFocus
+            margin="dense"
+            label="Date"
+            type="date"
+            fullWidth
+            value={editDate}
+            onChange={handleEditDateChange}
+            InputLabelProps={{ shrink: true }}
+            sx={{ mb: 2 }}
+          />
+          <TextField
             margin="dense"
             label="Value"
             type="number"
@@ -1749,6 +1904,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             value={editUserBirthdate}
             onChange={handleEditUserBirthdateChange}
             helperText="Format: MM/DD/YYYY (e.g., 01/15/2000)"
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={editUserEmail}
+            onChange={handleEditUserEmailChange}
+            margin="dense"
             sx={{ mb: 2 }}
           />
         </DialogContent>

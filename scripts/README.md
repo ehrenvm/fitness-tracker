@@ -105,12 +105,13 @@ The CSV file should have a header row with columns:
 - `lastName` (optional)
 - `gender` (optional: "Male", "Female", "Non-Binary")
 - `birthdate` (optional: format MM/DD/YYYY)
+- `email` (optional: user's email address)
 
 **Example CSV:**
 ```csv
-firstName,lastName,gender,birthdate
-John,Doe,Male,01/15/1990
-Jane,Smith,Female,03/22/1995
+firstName,lastName,gender,birthdate,email
+John,Doe,Male,01/15/1990,john.doe@example.com
+Jane,Smith,Female,03/22/1995,jane.smith@example.com
 ```
 
 **Output:**
@@ -153,6 +154,7 @@ See `data/users.example.yaml` for the complete format specification.
 - `lastName` (string)
 - `gender` (string): "Male", "Female", or "Non-Binary"
 - `birthdate` (string): Format MM/DD/YYYY (e.g., "01/15/2000")
+- `email` (string): User's email address
 - `tags` (array of strings)
 
 **Example YAML:**
@@ -161,6 +163,7 @@ See `data/users.example.yaml` for the complete format specification.
   lastName: Doe
   gender: Male
   birthdate: "01/15/1990"
+  email: "john.doe@example.com"
   tags:
     - athlete
     - premium
@@ -169,6 +172,7 @@ See `data/users.example.yaml` for the complete format specification.
   lastName: Smith
   gender: Female
   birthdate: "03/22/1995"
+  email: "jane.smith@example.com"
 ```
 
 **Features:**

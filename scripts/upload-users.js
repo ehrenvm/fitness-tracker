@@ -110,6 +110,12 @@ async function uploadUsers(yamlFilePath) {
             console.log(`⚠️  Skipping birthdate update for "${fullName}": Invalid format (expected MM/DD/YYYY)`);
           }
         }
+
+        // Check if email is missing in database but present in YAML
+        if (!existingData.email && user.email) {
+          updateData.email = user.email;
+          needsUpdate = true;
+        }
         
         if (needsUpdate) {
           try {
@@ -152,6 +158,10 @@ async function uploadUsers(yamlFilePath) {
       
       if (user.birthdate) {
         userDoc.birthdate = user.birthdate;
+      }
+
+      if (user.email) {
+        userDoc.email = user.email;
       }
       
       // Add to batch

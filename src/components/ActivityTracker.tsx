@@ -20,7 +20,11 @@ import {
   ToggleButtonGroup,
   Chip,
   OutlinedInput,
-  InputAdornment
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { ArrowUpward, ArrowDownward, CalendarToday } from '@mui/icons-material';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
@@ -94,6 +98,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const [userGender, setUserGender] = useState<string | undefined>(undefined);
   const [userBirthdate, setUserBirthdate] = useState<string | undefined>(undefined);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const [futureDateDialogOpen, setFutureDateDialogOpen] = useState(false);
 
   // Load activities from Firebase
   useEffect(() => {
@@ -246,8 +251,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     }
   }, [entryDate]);
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(async () => {
     if (!user || !selectedActivity) return;
 
     try {
@@ -280,6 +284,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       } else {
         dateToUse = new Date();
       }
+
       // Store as ISO string for consistency
       // Use the first selected user for new entries (or the single user if only one is selected)
       const userNameForEntry = userNames.length > 0 ? userNames[0] : '';
@@ -395,8 +400,41 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
 
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    void handleSubmit(e);
+
+    if (!user || !selectedActivity) {
+      return;
+    }
+
+    // Use selected date or today's date to check for future date
+    let dateToUse: Date;
+    if (entryDate) {
+      const [year, month, day] = entryDate.split('-').map(Number);
+      dateToUse = new Date(year, month - 1, day, 12, 0, 0, 0); // Noon local time
+    } else {
+      dateToUse = new Date();
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dateToCompare = new Date(dateToUse);
+    dateToCompare.setHours(0, 0, 0, 0);
+
+    if (dateToCompare.getTime() > today.getTime()) {
+      setFutureDateDialogOpen(true);
+      return;
+    }
+
+    void handleSubmit();
+  }, [user, selectedActivity, entryDate, handleSubmit]);
+
+  const handleConfirmFutureDate = useCallback(() => {
+    setFutureDateDialogOpen(false);
+    void handleSubmit();
   }, [handleSubmit]);
+
+  const handleCancelFutureDate = useCallback(() => {
+    setFutureDateDialogOpen(false);
+  }, []);
 
   const renderSelectedActivities = useCallback((selected: string[]) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -660,6 +698,33 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
           </Alert>
         ) : null}
       </Box>
+
+      {/* Future date confirmation dialog */}
+      <Dialog
+        open={futureDateDialogOpen}
+        onClose={handleCancelFutureDate}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Future Date</DialogTitle>
+        <DialogContent>
+          <Typography>
+            The selected date is in the future. Do you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCancelFutureDate}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmFutureDate}
+            color="primary"
+            variant="contained"
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

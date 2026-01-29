@@ -78,6 +78,10 @@ function convertToYAMLFormat(users) {
       // Ensure birthdate is in MM/DD/YYYY format
       yamlUser.birthdate = user.birthdate;
     }
+
+    if (user.email) {
+      yamlUser.email = user.email;
+    }
     
     // Tags are not in CSV, so we'll leave them out
     // If you want to add default tags, you can do it here
@@ -117,6 +121,7 @@ function convertCSVToYAML(csvFilePath, outputYamlPath) {
 #   - lastName: (string) User's last name
 #   - gender: (string) One of: "Male", "Female", "Non-Binary"
 #   - birthdate: (string) Format: MM/DD/YYYY (e.g., "01/15/2000")
+#   - email: (string) User's email address
 #   - tags: (array of strings) Tags to associate with the user
 #
 # Usage:

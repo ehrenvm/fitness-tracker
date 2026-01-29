@@ -46,6 +46,7 @@ interface UserDoc {
   tags?: string[];
   gender?: string;
   birthdate?: string;
+  email?: string;
 }
 
 interface FirebaseUserData {
@@ -56,6 +57,7 @@ interface FirebaseUserData {
   tags?: string[];
   gender?: string;
   birthdate?: string;
+   email?: string;
 }
 
 // Helper function to get full name
@@ -75,6 +77,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   const [newUserBirthdate, setNewUserBirthdate] = useState<string>('');
   const [newUserFirstName, setNewUserFirstName] = useState<string>('');
   const [newUserLastName, setNewUserLastName] = useState<string>('');
+  const [newUserEmail, setNewUserEmail] = useState<string>('');
   const [newUserTags, setNewUserTags] = useState<string[]>([]);
   const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
@@ -122,7 +125,8 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             createdAt: userData.createdAt ?? new Date().toISOString(),
             tags: userData.tags ?? [],
             gender: userData.gender,
-            birthdate: userData.birthdate
+            birthdate: userData.birthdate,
+            email: userData.email
           };
           
           const fullName = getFullName(user);
@@ -222,6 +226,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
   const handleRegister = useCallback(async () => {
     const firstName = newUserFirstName.trim();
     const lastName = newUserLastName.trim();
+    const email = newUserEmail.trim();
     
     if (!firstName) {
       setRegistrationError('Please enter a first name');
@@ -266,6 +271,10 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         }
       }
       
+      if (email) {
+        newUser.email = email;
+      }
+      
       const userDoc = await addDoc(usersRef, newUser);
       const fullName = `${firstName} ${lastName}`.trim();
       
@@ -281,6 +290,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       setNewUserBirthdate('');
       setNewUserFirstName('');
       setNewUserLastName('');
+      setNewUserEmail('');
       setNewUserTags([]);
       setUserName(fullName);
       setSearchTerm('');
@@ -289,7 +299,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       console.error('Error registering user:', error);
       setRegistrationError('An error occurred while registering. Please try again.');
     }
-  }, [newUserFirstName, newUserLastName, newUserGender, newUserBirthdate, newUserTags, setUserName, loadUsers]);
+  }, [newUserFirstName, newUserLastName, newUserGender, newUserBirthdate, newUserEmail, newUserTags, setUserName, loadUsers]);
 
   // Get all unique tags from all users
   const allTags = Array.from(
@@ -400,6 +410,10 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
 
   const handleLastNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setNewUserLastName(e.target.value);
+  }, []);
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewUserEmail(e.target.value);
   }, []);
 
   const handleGenderChange = useCallback((e: SelectChangeEvent) => {
@@ -594,6 +608,14 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
             label="Last Name"
             value={newUserLastName}
             onChange={handleLastNameChange}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Email (Optional)"
+            type="email"
+            value={newUserEmail}
+            onChange={handleEmailChange}
             sx={{ mb: 2 }}
           />
           <FormControl fullWidth sx={{ mb: 2 }}>
