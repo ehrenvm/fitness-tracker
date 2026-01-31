@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { ThemeProvider } from '@mui/material/styles';
 import { Box, Container, CssBaseline } from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { UserProvider } from './contexts/UserContext';
+import { UserProvider } from './contexts/UserContextProvider';
 import UserList from './components/UserList';
 import AdminPanel from './components/AdminPanel';
 import ActivityTracker from './components/ActivityTracker';

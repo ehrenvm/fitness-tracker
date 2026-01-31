@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Container,
   Typography,
@@ -32,9 +32,10 @@ import {
   Select,
   MenuItem,
   SelectChangeEvent,
-  Checkbox
+  Checkbox,
+  InputAdornment
 } from '@mui/material';
-import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon, Search as SearchIcon } from '@mui/icons-material';
 import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where, Timestamp, writeBatch, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, logAnalyticsEvent } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
@@ -112,6 +113,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [editTagName, setEditTagName] = useState('');
   const [confirmDeleteTag, setConfirmDeleteTag] = useState<string | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [bulkAddTagDialog, setBulkAddTagDialog] = useState(false);
   const [bulkTagToAdd, setBulkTagToAdd] = useState<string>('');
   const [addTagDialog, setAddTagDialog] = useState(false);
@@ -750,15 +752,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     });
   }, []);
 
+  const filteredUsers = useMemo(() => {
+    const searchLower = userSearchTerm.toLowerCase().trim();
+    if (!searchLower) return users;
+    return users.filter(u => {
+      const fullName = getFullName(u);
+      return (
+        fullName.toLowerCase().includes(searchLower) ||
+        u.firstName.toLowerCase().includes(searchLower) ||
+        u.lastName.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [users, userSearchTerm]);
+
+  const handleUserSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setUserSearchTerm(e.target.value);
+  }, []);
+
   const handleSelectAllUsers = useCallback(() => {
     setSelectedUsers(prev => {
-      if (prev.size === users.length) {
-        return new Set();
+      const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => prev.has(u.id));
+      if (allFilteredSelected) {
+        const next = new Set(prev);
+        filteredUsers.forEach(u => next.delete(u.id));
+        return next;
       } else {
-        return new Set(users.map(u => u.id));
+        const next = new Set(prev);
+        filteredUsers.forEach(u => next.add(u.id));
+        return next;
       }
     });
-  }, [users]);
+  }, [filteredUsers]);
 
   const handleBulkAddTag = useCallback(async () => {
     if (!bulkTagToAdd.trim() || selectedUsers.size === 0) return;
@@ -1501,9 +1525,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 variant="outlined"
                 onClick={handleSelectAllUsers}
               >
-                {selectedUsers.size === users.length ? 'Deselect All' : 'Select All'}
+                {filteredUsers.length > 0 && selectedUsers.size === filteredUsers.length ? 'Deselect All' : 'Select All'}
               </Button>
             </Box>
+          </Box>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search by name..."
+              value={userSearchTerm}
+              onChange={handleUserSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
           </Box>
           <TableContainer>
             <Table>
@@ -1511,8 +1551,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 <TableRow>
                   <TableCell padding="checkbox">
                     <Checkbox
-                      indeterminate={selectedUsers.size > 0 && selectedUsers.size < users.length}
-                      checked={users.length > 0 && selectedUsers.size === users.length}
+                      indeterminate={filteredUsers.length > 0 && selectedUsers.size > 0 && selectedUsers.size < filteredUsers.length}
+                      checked={filteredUsers.length > 0 && filteredUsers.every(u => selectedUsers.has(u.id))}
                       onChange={handleSelectAllUsers}
                     />
                   </TableCell>
@@ -1526,7 +1566,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <TableRow key={user.id} selected={selectedUsers.has(user.id)}>
                     <TableCell padding="checkbox">
                       <Checkbox
