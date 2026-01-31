@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getAnalytics, logEvent, Analytics } from 'firebase/analytics';
 
@@ -67,6 +67,17 @@ try {
   console.error('Firebase initialization error:', error);
   throw error;
 }
+
+// Enable offline persistence (single-tab). Firestore works without it if this fails.
+enableIndexedDbPersistence(db).catch((err: unknown) => {
+  if (err instanceof Error && err.name === 'failed-precondition') {
+    console.warn('Firestore offline persistence failed: multiple tabs open. Data will still work without cache.');
+  } else if (err instanceof Error && err.name === 'unimplemented') {
+    console.warn('Firestore offline persistence not supported in this browser.');
+  } else {
+    console.warn('Firestore offline persistence failed:', err);
+  }
+});
 
 export { db, auth, analytics };
 
