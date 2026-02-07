@@ -24,6 +24,7 @@ import {
   Stack
 } from '@mui/material';
 import { Fullscreen, Close } from '@mui/icons-material';
+import { formatActivityValueDisplay } from '../utils/formatActivityValue';
 
 interface ActivityResult {
   id: string;
@@ -360,19 +361,22 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
               return null;
             }
 
+            const fmt = (v: number | undefined) =>
+              v !== undefined ? formatActivityValueDisplay(activity, v) : 'N/A';
+
             return (
               <Box key={activity} sx={{ mb: 1 }}>
                 <Typography variant="body2" fontWeight="bold">
                   {activity}
                 </Typography>
                 <Typography variant="body2" style={{ color: '#F44336' }}>
-                  Min: {minEntry?.value?.toFixed(2) ?? 'N/A'}
+                  Min: {fmt(minEntry?.value)}
                 </Typography>
                 <Typography variant="body2" style={{ color: medianEntry?.color ?? '#3BB982' }}>
-                  Median: {medianEntry?.value?.toFixed(2) ?? 'N/A'}
+                  Median: {fmt(medianEntry?.value)}
                 </Typography>
                 <Typography variant="body2" style={{ color: '#2196F3' }}>
-                  Max: {maxEntry?.value?.toFixed(2) ?? 'N/A'}
+                  Max: {fmt(maxEntry?.value)}
                 </Typography>
               </Box>
             );
@@ -432,6 +436,8 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
               : null;
 
             const displayName = userName ? `${activityName} (${userName})` : activityName;
+            const valueDisplay = formatActivityValueDisplay(activityName, value ?? 0);
+            const originalDisplay = originalValue != null ? formatActivityValueDisplay(activityName, originalValue) : '';
 
             return (
               <Typography
@@ -440,8 +446,8 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ results, selectedActiviti
                 style={{ color: entry.color }}
               >
                 {displayName}: {isNormalized 
-                  ? `${value?.toFixed(1)}% (${originalValue?.toFixed(2)})`
-                  : value?.toFixed(2)}
+                  ? `${value?.toFixed(1)}% (${originalDisplay})`
+                  : valueDisplay}
               </Typography>
             );
           }).filter(Boolean)}

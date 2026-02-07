@@ -33,6 +33,7 @@ import { ANALYTICS_EVENTS } from '../constants/analytics';
 import ActivityGraph from './ActivityGraph';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import CompoundValueInput from './CompoundValueInput';
+import { formatActivityValueDisplay } from '../utils/formatActivityValue';
 
 // Default activities list (will be updated from Firebase)
 // eslint-disable-next-line react-refresh/only-export-components
@@ -670,7 +671,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                         secondary={
                           <Box>
                             <Typography variant="body2" component="span" color="text.secondary">
-                              Value: {result.value} | 
+                              Value: {formatActivityValueDisplay(result.activity, result.value)} |
                             </Typography>
                             <Typography variant="body2" component="span" color="text.secondary" sx={{ ml: 1 }}>
                               Date: {new Date(result.date).toLocaleDateString()}

@@ -41,6 +41,7 @@ import { db, logAnalyticsEvent } from '../firebase';
 import ActivityLeaderboard from './ActivityLeaderboard';
 import { ACTIVITIES } from './ActivityTracker';
 import { auth } from '../firebase';
+import { formatActivityValueDisplay } from '../utils/formatActivityValue';
 import { ANALYTICS_EVENTS } from '../constants/analytics';
 
 interface Result {
@@ -1465,7 +1466,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
                     <TableRow key={result.id}>
                       <TableCell>{result.userName}</TableCell>
                       <TableCell>{result.activity}</TableCell>
-                      <TableCell>{result.value}</TableCell>
+                      <TableCell>{formatActivityValueDisplay(result.activity, result.value)}</TableCell>
                       <TableCell>{new Date(result.date).toLocaleDateString()}</TableCell>
                       <TableCell sx={{ display: 'flex', gap: 1 }}>
                         <Button

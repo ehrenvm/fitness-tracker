@@ -22,6 +22,7 @@ import {
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ACTIVITIES } from './ActivityTracker';
+import { formatActivityValueDisplay } from '../utils/formatActivityValue';
 
 type ViewMode = 'all' | 'max' | 'min';
 type Order = 'asc' | 'desc';
@@ -282,7 +283,7 @@ const ActivityLeaderboard: React.FC = () => {
                   <TableRow key={`${result.userName}-${result.date}`}>
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{result.userName}</TableCell>
-                    <TableCell>{result.value}</TableCell>
+                    <TableCell>{formatActivityValueDisplay(selectedActivity, result.value)}</TableCell>
                     <TableCell>{new Date(result.date).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
