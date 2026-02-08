@@ -26,7 +26,9 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { ArrowUpward, ArrowDownward, CalendarToday } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward, CalendarToday, PictureAsPdf } from '@mui/icons-material';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db, logAnalyticsEvent, auth } from '../firebase';
 import { ANALYTICS_EVENTS } from '../constants/analytics';
@@ -99,7 +101,9 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const [userGender, setUserGender] = useState<string | undefined>(undefined);
   const [userBirthdate, setUserBirthdate] = useState<string | undefined>(undefined);
   const dateInputRef = useRef<HTMLInputElement>(null);
+  const reportSectionRef = useRef<HTMLDivElement>(null);
   const [futureDateDialogOpen, setFutureDateDialogOpen] = useState(false);
+  const [reportGenerating, setReportGenerating] = useState(false);
 
   // Load activities from Firebase
   useEffect(() => {
@@ -437,6 +441,100 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     setFutureDateDialogOpen(false);
   }, []);
 
+  const getAgeFromBirthdate = useCallback((birthdate: string | undefined): number | null => {
+    if (!birthdate) return null;
+    try {
+      const [month, day, year] = birthdate.split('/').map(Number);
+      const birthDate = new Date(year, month - 1, day);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const handleGenerateReport = useCallback(async () => {
+    const element = reportSectionRef.current;
+    if (!element) return;
+
+    setReportGenerating(true);
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      let y = 20;
+
+      // Title
+      doc.setFontSize(18);
+      doc.text('Performance Report', margin, y);
+      y += 12;
+
+      // Athlete summary
+      doc.setFontSize(11);
+      const athleteName = userNames.length === 1 ? userNames[0] : userNames.join(', ');
+      doc.text(`Athlete(s): ${athleteName}`, margin, y);
+      y += 7;
+
+      if (userNames.length === 1) {
+        const genderLabel = userGender ? `Gender: ${userGender}` : null;
+        const age = getAgeFromBirthdate(userBirthdate);
+        const ageLabel = age !== null ? `Age: ${age} years` : null;
+        const parts = [genderLabel, ageLabel].filter(Boolean);
+        if (parts.length > 0) {
+          doc.text(parts.join('  |  '), margin, y);
+          y += 7;
+        }
+      }
+
+      if (selectedActivities.length > 0) {
+        doc.text(`Activities: ${selectedActivities.sort((a, b) => a.localeCompare(b)).join(', ')}`, margin, y);
+        y += 10;
+      }
+
+      y += 4;
+
+      // Capture chart + history section
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - y - margin;
+
+      let imgWidth = (canvas.width * maxWidth) / canvas.width;
+      let imgHeight = (canvas.height * maxWidth) / canvas.width;
+
+      if (imgHeight > maxHeight) {
+        const scale = maxHeight / imgHeight;
+        imgHeight = maxHeight;
+        imgWidth = imgWidth * scale;
+      }
+
+      doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+
+      const fileName = userNames.length === 1
+        ? `performance-report-${userNames[0].replace(/\s+/g, '-')}.pdf`
+        : 'performance-report.pdf';
+      doc.save(fileName);
+    } catch (err) {
+      console.error('Error generating report:', err);
+      setError('Failed to generate PDF report.');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setReportGenerating(false);
+    }
+  }, [userNames, userGender, userBirthdate, selectedActivities, getAgeFromBirthdate]);
+
   const renderSelectedActivities = useCallback((selected: string[]) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       {selected.sort((a, b) => a.localeCompare(b)).map((value) => (
@@ -581,7 +679,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                 Filter Activities
               </Typography>
               
-              <FormControl fullWidth>
+              <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Select Activities</InputLabel>
                 <Select
                   multiple
@@ -598,24 +696,31 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   ))}
                 </Select>
               </FormControl>
+
+              <Button
+                variant="outlined"
+                startIcon={<PictureAsPdf />}
+                onClick={handleGenerateReport}
+                disabled={selectedActivities.length === 0 || reportGenerating}
+                fullWidth
+              >
+                {reportGenerating ? 'Generating…' : 'Generate Report (PDF)'}
+              </Button>
             </Paper>
           </Grid>
 
-          {/* Chart - Full Width */}
+          {/* Chart and History - wrapped for PDF report capture */}
           <Grid item xs={12}>
-            <ActivityGraph 
-              results={filteredResults}
-              selectedActivities={selectedActivities}
-            />
-          </Grid>
-
-          {/* Activity History - Full Width */}
-          <Grid item xs={12}>
-            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  Activity History
-                </Typography>
+            <Box ref={reportSectionRef}>
+              <ActivityGraph 
+                results={filteredResults}
+                selectedActivities={selectedActivities}
+              />
+              <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">
+                    Activity History
+                  </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <ToggleButtonGroup
                     exclusive
@@ -683,7 +788,8 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   ))}
                 </List>
               )}
-            </Paper>
+              </Paper>
+            </Box>
           </Grid>
         </Grid>
 
