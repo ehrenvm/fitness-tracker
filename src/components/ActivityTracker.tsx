@@ -403,6 +403,18 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     setSelectedActivities(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value);
   }, []);
 
+  const handleRemoveActivity = useCallback((activity: string) => {
+    setSelectedActivities(prev => prev.filter(a => a !== activity));
+  }, []);
+
+  const handleActivityChipMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation(); // Prevent Select from opening on mousedown
+    const activity = (e.currentTarget as HTMLDivElement).getAttribute('data-activity');
+    if (activity) {
+      handleRemoveActivity(activity);
+    }
+  }, [handleRemoveActivity]);
+
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
 
@@ -535,13 +547,23 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
     }
   }, [userNames, userGender, userBirthdate, selectedActivities, getAgeFromBirthdate]);
 
+  const onReportClick = useCallback(() => {
+    void handleGenerateReport();
+  }, [handleGenerateReport]);
+
   const renderSelectedActivities = useCallback((selected: string[]) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       {selected.sort((a, b) => a.localeCompare(b)).map((value) => (
-        <Chip key={value} label={value} />
+        <Chip
+          key={value}
+          label={value}
+          data-activity={value}
+          onMouseDown={handleActivityChipMouseDown}
+          sx={{ cursor: 'pointer' }}
+        />
       ))}
     </Box>
-  ), []);
+  ), [handleActivityChipMouseDown]);
 
   // Don't render anything if no users are selected - let parent handle the message
   if (userNames.length === 0) {
@@ -700,7 +722,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
               <Button
                 variant="outlined"
                 startIcon={<PictureAsPdf />}
-                onClick={handleGenerateReport}
+                onClick={onReportClick}
                 disabled={selectedActivities.length === 0 || reportGenerating}
                 fullWidth
               >

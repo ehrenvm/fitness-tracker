@@ -14,6 +14,9 @@ import { theme } from './theme';
 import { Typography, CircularProgress } from '@mui/material';
 import { BackgroundContainer, ContentContainer } from './styles/background';
 
+// Space reserved for header, padding, and other chrome above the main content
+const HEADER_AND_PADDING = 200;
+
 // AdminRoute component to check for admin privileges
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAdmin, loading } = useAuth();
@@ -80,7 +83,16 @@ const App: React.FC = () => {
                       <ProtectedRoute>
                         <Container maxWidth="lg" sx={{ py: 3 }}>
                           <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-                            <Box sx={{ width: '25%', borderRadius: 4, overflow: 'hidden', bgcolor: 'background.paper' }}>
+                            <Box sx={{ 
+                              width: '25%', 
+                              borderRadius: 4, 
+                              overflow: 'hidden', 
+                              bgcolor: 'background.paper',
+                              height: `calc(100vh - ${HEADER_AND_PADDING}px)`,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              minHeight: 0
+                            }}>
                               <UserList
                                 onUserSelect={handleUserSelect}
                                 selectedUsers={selectedUsers}
@@ -95,7 +107,7 @@ const App: React.FC = () => {
                                 bgcolor: 'transparent',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                minHeight: 'calc(100vh - 200px)',
+                                minHeight: `calc(100vh - ${HEADER_AND_PADDING}px)`,
                                 justifyContent: 'flex-start',
                                 ...(selectedUsers.length === 0 && { paddingTop: '10%' })
                               }}

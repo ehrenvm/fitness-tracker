@@ -65,6 +65,24 @@ const getFullName = (user: UserDoc): string => {
   return `${user.firstName} ${user.lastName}`.trim();
 };
 
+// Parse firstName/lastName from Firebase user data, supporting both old (name) and new (firstName/lastName) formats
+const parseNameFromFirebaseData = (userData: FirebaseUserData): { firstName: string; lastName: string } => {
+  let firstName = userData.firstName ?? '';
+  let lastName = userData.lastName ?? '';
+  if (!firstName && !lastName && userData.name) {
+    const nameStr = String(userData.name);
+    const parts = nameStr.trim().split(/\s+/);
+    if (parts.length === 1) {
+      firstName = parts[0] ?? '';
+      lastName = '';
+    } else if (parts.length > 1) {
+      lastName = parts[parts.length - 1] ?? '';
+      firstName = parts.slice(0, -1).join(' ');
+    }
+  }
+  return { firstName, lastName };
+};
+
 const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selectedUsers, refreshTrigger }) => {
   const { setUserName } = useUser();
   const [users, setUsers] = useState<UserDoc[]>([]);
@@ -94,23 +112,8 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       snapshot.docs.forEach(doc => {
         try {
           const userData = doc.data() as FirebaseUserData;
-          // Handle migration: support both old (name) and new (firstName/lastName) format
-          let firstName = userData.firstName ?? '';
-          let lastName = userData.lastName ?? '';
-          
-          // If old format exists, split it
-          if (!firstName && !lastName && userData.name) {
-            const nameStr = String(userData.name);
-            const parts = nameStr.trim().split(/\s+/);
-            if (parts.length === 1) {
-              firstName = parts[0] ?? '';
-              lastName = '';
-            } else if (parts.length > 1) {
-              lastName = parts[parts.length - 1] ?? '';
-              firstName = parts.slice(0, -1).join(' ');
-            }
-          }
-          
+          const { firstName, lastName } = parseNameFromFirebaseData(userData);
+
           // Ensure we have at least a firstName
           if (!firstName && !lastName) {
             console.warn(`User ${doc.id} has no name data, skipping`);
@@ -146,21 +149,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       snapshot.docs.forEach(doc => {
         try {
           const userData = doc.data() as FirebaseUserData;
-          let firstName = userData.firstName ?? '';
-          let lastName = userData.lastName ?? '';
-          
-          if (!firstName && !lastName && userData.name) {
-            const nameStr = String(userData.name);
-            const parts = nameStr.trim().split(/\s+/);
-            if (parts.length === 1) {
-              firstName = parts[0] ?? '';
-              lastName = '';
-            } else if (parts.length > 1) {
-              lastName = parts[parts.length - 1] ?? '';
-              firstName = parts.slice(0, -1).join(' ');
-            }
-          }
-          
+          const { firstName, lastName } = parseNameFromFirebaseData(userData);
           const fullName = `${firstName} ${lastName}`.trim();
           if (!fullName) return; // Skip if no name
           
@@ -363,18 +352,6 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       setUserName(newSelectedUsers[0]);
     }
     
-    // Only scroll to top when:
-    // 1. Regular click (not Ctrl/Shift) that results in single selection
-    // 2. OR switching from multi-select back to single select
-    const isRegularClick = !e.ctrlKey && !e.metaKey && !e.shiftKey;
-    const isSingleSelect = newSelectedUsers.length === 1;
-    const wasMultiSelect = selectedUsers.length > 1;
-    const switchingToSingle = wasMultiSelect && isSingleSelect;
-    
-    if (isRegularClick && (isSingleSelect || switchingToSingle)) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    
     onUserSelect(newSelectedUsers);
   }, [selectedUsers, filteredUsers, lastSelectedIndex, setUserName, onUserSelect]);
 
@@ -520,11 +497,11 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
       </Box>
 
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3, flexGrow: 1, minHeight: 0 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <List sx={{ overflow: 'auto', flexGrow: 1 }}>
+        <List sx={{ overflow: 'auto', flexGrow: 1, minHeight: 0 }}>
           {filteredUsers.map((user) => {
             const fullName = getFullName(user);
             const isSelected = selectedUsers.includes(fullName);
