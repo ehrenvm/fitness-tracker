@@ -454,16 +454,16 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
         flexDirection: 'column'
       }}
     >
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="h6">
+      <Box sx={{ p: { xs: 1.5, md: 2 }, borderBottom: 1, borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6" sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
           Users{filteredUsers.length > 0 ? ` (${filteredUsers.length}${selectedTagFilter ? ` of ${users.length}` : ''})` : users.length > 0 ? ` (${users.length})` : ''}
         </Typography>
-        <IconButton onClick={onAdminClick} color="primary" size="small">
+        <IconButton onClick={onAdminClick} color="primary" size="small" sx={{ minWidth: 44, minHeight: 44 }}>
           <AdminPanelSettingsIcon />
         </IconButton>
       </Box>
       
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: { xs: 1.5, md: 2 }, borderBottom: 1, borderColor: 'divider' }}>
         <TextField
           fullWidth
           size="small"
@@ -510,9 +510,17 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                 <ListItemButton 
                   selected={isSelected}
                   onClick={createUserClickHandler(user)}
+                  sx={{
+                    minHeight: 48,
+                    py: { xs: 1.5, md: 1 },
+                    px: { xs: 2, md: 2 },
+                  }}
                 >
                   <ListItemText 
                     primary={fullName}
+                    primaryTypographyProps={{
+                      sx: { fontSize: { xs: '0.95rem', md: '1rem' } },
+                    }}
                     secondary={
                       user.tags && user.tags.length > 0 ? (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
@@ -543,6 +551,7 @@ const UserList: React.FC<UserListProps> = ({ onAdminClick, onUserSelect, selecte
                 variant="contained"
                 fullWidth
                 onClick={handleRegisterFromSearch}
+                sx={{ minHeight: 44 }}
               >
                 Register &quot;{searchTerm.trim()}&quot;
               </Button>

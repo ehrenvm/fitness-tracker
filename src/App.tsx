@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
-import { Box, Container, CssBaseline } from '@mui/material';
+import { Box, Container, CssBaseline, useMediaQuery, Collapse, Chip } from '@mui/material';
+import { ExpandMore, ExpandLess, PersonSearch } from '@mui/icons-material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { UserProvider } from './contexts/UserContextProvider';
 import UserList from './components/UserList';
@@ -40,9 +41,11 @@ const App: React.FC = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [highlight, setHighlight] = useState(false);
-  const highlightTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [mobileUserListOpen, setMobileUserListOpen] = useState(true);
+  const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleUserSelect = useCallback((userNames: string[]): void => {
     setSelectedUsers(userNames);
@@ -50,8 +53,12 @@ const App: React.FC = () => {
       setHighlight(true);
       if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
       highlightTimeout.current = setTimeout(() => setHighlight(false), 2500);
+      // Auto-collapse user list on mobile after selection
+      if (isMobile) {
+        setMobileUserListOpen(false);
+      }
     }
-  }, []);
+  }, [isMobile]);
 
   const handleUserDeleted = useCallback((): void => {
     setRefreshTrigger(prev => prev + 1);
@@ -65,6 +72,17 @@ const App: React.FC = () => {
   const handleBackClick = useCallback((): void => {
     navigate('/');
   }, [navigate]);
+
+  const toggleMobileUserList = useCallback((): void => {
+    setMobileUserListOpen(prev => !prev);
+  }, []);
+
+  const handleMobileUserListKeyDown = useCallback((e: React.KeyboardEvent): void => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setMobileUserListOpen(prev => !prev);
+    }
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -81,35 +99,100 @@ const App: React.FC = () => {
 
                     <Route path="/" element={
                       <ProtectedRoute>
-                        <Container maxWidth="lg" sx={{ py: 3 }}>
-                          <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-                            <Box sx={{ 
-                              width: '25%', 
-                              borderRadius: 4, 
-                              overflow: 'hidden', 
+                        <Container maxWidth="lg" sx={{ py: { xs: 1, md: 3 }, px: { xs: 1, sm: 2, md: 3 } }}>
+                          <Box sx={{
+                            display: 'flex',
+                            flexDirection: { xs: 'column', md: 'row' },
+                            gap: { xs: 1.5, md: 3 },
+                            alignItems: 'flex-start',
+                          }}>
+                            {/* User List Panel */}
+                            <Box sx={{
+                              width: { xs: '100%', md: '25%' },
+                              borderRadius: { xs: 2, md: 4 },
+                              overflow: 'hidden',
                               bgcolor: 'background.paper',
-                              height: `calc(100vh - ${HEADER_AND_PADDING}px)`,
+                              // On desktop: fixed height sidebar
+                              ...(!isMobile && {
+                                height: `calc(100vh - ${HEADER_AND_PADDING}px)`,
+                              }),
                               display: 'flex',
                               flexDirection: 'column',
-                              minHeight: 0
+                              minHeight: 0,
                             }}>
-                              <UserList
-                                onUserSelect={handleUserSelect}
-                                selectedUsers={selectedUsers}
-                                refreshTrigger={refreshTrigger}
-                                onAdminClick={handleAdminClick}
-                              />
+                              {/* Mobile: collapsible header for user list */}
+                              {isMobile ? (
+                                <Box
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-expanded={mobileUserListOpen}
+                                  aria-label={mobileUserListOpen ? 'Collapse athlete list' : 'Expand athlete list'}
+                                  onClick={toggleMobileUserList}
+                                  onKeyDown={handleMobileUserListKeyDown}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    px: 2,
+                                    py: 1.5,
+                                    cursor: 'pointer',
+                                    bgcolor: 'primary.main',
+                                    color: 'primary.contrastText',
+                                    minHeight: 48,
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, flex: 1 }}>
+                                    <PersonSearch fontSize="small" />
+                                    <Typography variant="subtitle1" fontWeight="bold" noWrap>
+                                      {selectedUsers.length > 0
+                                        ? `Selected: ${selectedUsers.join(', ')}`
+                                        : 'Select Athlete'}
+                                    </Typography>
+                                    {selectedUsers.length > 1 && (
+                                      <Chip
+                                        label={selectedUsers.length}
+                                        size="small"
+                                        sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'inherit', ml: 0.5 }}
+                                      />
+                                    )}
+                                  </Box>
+                                  {mobileUserListOpen ? <ExpandLess /> : <ExpandMore />}
+                                </Box>
+                              ) : null}
+
+                              {/* Desktop: always visible; Mobile: collapsible */}
+                              {isMobile ? (
+                                <Collapse in={mobileUserListOpen}>
+                                  <Box sx={{ maxHeight: '50vh', overflow: 'auto' }}>
+                                    <UserList
+                                      onUserSelect={handleUserSelect}
+                                      selectedUsers={selectedUsers}
+                                      refreshTrigger={refreshTrigger}
+                                      onAdminClick={handleAdminClick}
+                                    />
+                                  </Box>
+                                </Collapse>
+                              ) : (
+                                <UserList
+                                  onUserSelect={handleUserSelect}
+                                  selectedUsers={selectedUsers}
+                                  refreshTrigger={refreshTrigger}
+                                  onAdminClick={handleAdminClick}
+                                />
+                              )}
                             </Box>
-                            <Box 
-                              sx={{ 
-                                width: '75%', 
-                                borderRadius: 4,
+
+                            {/* Activity Tracker Panel */}
+                            <Box
+                              sx={{
+                                width: { xs: '100%', md: '75%' },
+                                borderRadius: { xs: 2, md: 4 },
                                 bgcolor: 'transparent',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                minHeight: `calc(100vh - ${HEADER_AND_PADDING}px)`,
+                                minHeight: { xs: 'auto', md: `calc(100vh - ${HEADER_AND_PADDING}px)` },
                                 justifyContent: 'flex-start',
-                                ...(selectedUsers.length === 0 && { paddingTop: '10%' })
+                                ...(selectedUsers.length === 0 && !isMobile && { paddingTop: '10%' }),
                               }}
                               className={highlight ? 'highlight-activity-tracker' : ''}
                             >
@@ -120,9 +203,15 @@ const App: React.FC = () => {
                                   display: 'flex',
                                   justifyContent: 'center',
                                   alignItems: 'center',
-                                  p: 3
+                                  p: 3,
+                                  mt: { xs: 2, md: 0 },
                                 }}>
-                                  <Typography variant="h6" color="textSecondary" fontWeight="bold">
+                                  <Typography
+                                    variant={isMobile ? 'body1' : 'h6'}
+                                    color="textSecondary"
+                                    fontWeight="bold"
+                                    textAlign="center"
+                                  >
                                     Select a user to view their activities or add a result.
                                   </Typography>
                                 </Box>

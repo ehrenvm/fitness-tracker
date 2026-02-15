@@ -571,13 +571,13 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
+    <Container maxWidth="lg" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
+      <Box sx={{ mt: { xs: 2, md: 4 } }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}>
           Activity Tracker
         </Typography>
         
-        <Typography variant="h6" gutterBottom>
+        <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem', md: '1.25rem' } }}>
           {userNames.length === 1 ? (
             <>
               Welcome, {userNames[0]}!
@@ -617,11 +617,11 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
           )}
         </Typography>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, md: 3 }}>
           {/* Top Row - Add Activity and Filter Activities */}
           <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
-              <Typography variant="h6" gutterBottom>
+            <Paper elevation={3} sx={{ p: { xs: 2, md: 3 }, borderRadius: { xs: 2, md: 4 } }}>
+              <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                 Add New Activity
               </Typography>
               <form onSubmit={handleFormSubmit}>
@@ -688,6 +688,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                   color="primary"
                   fullWidth
                   disabled={!selectedActivity || !value.value1}
+                  sx={{ minHeight: 48, fontSize: { xs: '0.95rem', md: '1rem' } }}
                 >
                   Track Activity
                 </Button>
@@ -696,8 +697,8 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
           </Grid>
 
           <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3, borderRadius: 4 }}>
-              <Typography variant="h6" gutterBottom>
+            <Paper elevation={3} sx={{ p: { xs: 2, md: 3 }, borderRadius: { xs: 2, md: 4 } }}>
+              <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                 Filter Activities
               </Typography>
               
@@ -725,6 +726,7 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                 onClick={onReportClick}
                 disabled={selectedActivities.length === 0 || reportGenerating}
                 fullWidth
+                sx={{ minHeight: 44 }}
               >
                 {reportGenerating ? 'Generating…' : 'Generate Report (PDF)'}
               </Button>
@@ -738,9 +740,9 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
                 results={filteredResults}
                 selectedActivities={selectedActivities}
               />
-              <Paper elevation={3} sx={{ p: 3, borderRadius: 4, mt: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">
+              <Paper elevation={3} sx={{ p: { xs: 2, md: 3 }, borderRadius: { xs: 2, md: 4 }, mt: { xs: 2, md: 3 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Activity History
                   </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
