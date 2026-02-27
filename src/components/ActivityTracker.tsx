@@ -26,7 +26,7 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { ArrowUpward, ArrowDownward, CalendarToday, PictureAsPdf } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward, CalendarToday, PictureAsPdf, EmojiEvents } from '@mui/icons-material';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { collection, addDoc, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
@@ -35,7 +35,10 @@ import { ANALYTICS_EVENTS } from '../constants/analytics';
 import ActivityGraph from './ActivityGraph';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import CompoundValueInput from './CompoundValueInput';
+import PersonalRecords from './PersonalRecords';
 import { formatActivityValueDisplay } from '../utils/formatActivityValue';
+import { triggerPrCelebration } from '../utils/prCelebration';
+import type { ActivityResult, ActivityValue } from '../types/activity';
 
 // Default activities list (will be updated from Firebase)
 // eslint-disable-next-line react-refresh/only-export-components
@@ -48,14 +51,6 @@ export const ACTIVITIES = [
   'Deadlift (lbs)',
   'Bench Press (lbs)'
 ];
-
-interface ActivityResult {
-  id: string;
-  userName: string;
-  activity: string;
-  value: number;
-  date: string;
-}
 
 interface ActivityTrackerProps {
   userNames: string[];
@@ -75,14 +70,17 @@ const MenuProps = {
   },
 };
 
-interface ActivityValue {
-  value1: string;
-  value2: string;
-}
-
 const isCompoundUnit = (activity: string): boolean => {
   const match = activity.match(/\((.*?)\)/);
   return match ? match[1].includes('/') : false;
+};
+
+const getTodayString = (): string => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
@@ -95,15 +93,17 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [activities, setActivities] = useState<string[]>(ACTIVITIES);
+  const [activityPrDirection, setActivityPrDirection] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [entryDate, setEntryDate] = useState<string>("");
+  const [entryDate, setEntryDate] = useState<string>(getTodayString);
   const [userGender, setUserGender] = useState<string | undefined>(undefined);
   const [userBirthdate, setUserBirthdate] = useState<string | undefined>(undefined);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const reportSectionRef = useRef<HTMLDivElement>(null);
   const [futureDateDialogOpen, setFutureDateDialogOpen] = useState(false);
   const [reportGenerating, setReportGenerating] = useState(false);
+  const [prCelebration, setPrCelebration] = useState<string | null>(null);
 
   // Load activities from Firebase
   useEffect(() => {
@@ -113,9 +113,11 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
           const data = activitiesDoc.data();
-          // data is guaranteed to exist when exists() is true
           if ('list' in data && Array.isArray(data.list)) {
             setActivities(data.list as string[]);
+          }
+          if ('prDirection' in data && typeof data.prDirection === 'object' && data.prDirection !== null) {
+            setActivityPrDirection(data.prDirection as Record<string, boolean>);
           }
         }
       } catch (error) {
@@ -245,16 +247,8 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
 
   const handleActivityChange = useCallback((event: SelectChangeEvent) => {
     setSelectedActivity(event.target.value);
-    setValue({ value1: '', value2: '' }); // Reset both values when activity changes
-    // Set date to today if no date is currently set
-    if (!entryDate && event.target.value) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      setEntryDate(`${year}-${month}-${day}`);
-    }
-  }, [entryDate]);
+    setValue({ value1: '', value2: '' });
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!user || !selectedActivity) return;
@@ -315,33 +309,44 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
         resultId: docRef.id
       });
 
-      // Check for performance milestones
+      // Check for personal records
+      const higherIsBetter = activityPrDirection[selectedActivity] !== false;
       const userResults = results.filter(r => r.activity === selectedActivity && r.userName === userNameForEntry);
+      let isNewPR = userResults.length === 0;
       if (userResults.length > 0) {
-        const personalBest = Math.max(...userResults.map(r => r.value));
-        if (finalValue > personalBest) {
+        const currentBest = higherIsBetter
+          ? Math.max(...userResults.map(r => r.value))
+          : Math.min(...userResults.map(r => r.value));
+        isNewPR = higherIsBetter ? finalValue > currentBest : finalValue < currentBest;
+        if (isNewPR) {
           logAnalyticsEvent(ANALYTICS_EVENTS.PERFORMANCE_MILESTONE, {
             userId: user.uid,
             userName: userNameForEntry,
             activity: selectedActivity,
             value: finalValue,
             type: 'personal_best',
-            previousBest: personalBest
+            previousBest: currentBest
           });
         }
+      }
+
+      if (isNewPR) {
+        setPrCelebration(selectedActivity);
+        triggerPrCelebration();
+        setTimeout(() => setPrCelebration(null), 3500);
       }
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
       setValue({ value1: '', value2: '' });
-      setEntryDate("");
+      setEntryDate(getTodayString());
       void loadResults();
     } catch (error) {
       console.error('Error adding result:', error);
       setError('Failed to add result. Please try again.');
       setTimeout(() => setError(null), 3000);
     }
-  }, [user, selectedActivity, value, entryDate, userNames, results, loadResults]);
+  }, [user, selectedActivity, value, entryDate, userNames, results, loadResults, activityPrDirection]);
 
   const handleCheckActivity = useCallback(() => {
     let filtered = [...results];
@@ -733,6 +738,17 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
             </Paper>
           </Grid>
 
+          {/* Personal Records - only for single user */}
+          {userNames.length === 1 && (
+            <Grid item xs={12}>
+              <PersonalRecords
+                results={results}
+                userName={userNames[0]}
+                activityPrDirection={activityPrDirection}
+              />
+            </Grid>
+          )}
+
           {/* Chart and History - wrapped for PDF report capture */}
           <Grid item xs={12}>
             <Box ref={reportSectionRef}>
@@ -817,13 +833,28 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
           </Grid>
         </Grid>
 
+        {prCelebration ? (
+          <Alert
+            severity="success"
+            icon={<EmojiEvents sx={{ color: '#FFD700' }} />}
+            sx={{
+              mt: 2,
+              bgcolor: 'rgba(255, 215, 0, 0.12)',
+              border: '2px solid #FFD700',
+              '& .MuiAlert-message': { fontWeight: 'bold', fontSize: '1.1rem' }
+            }}
+          >
+            New Personal Record for {prCelebration}!
+          </Alert>
+        ) : null}
+
         {error ? (
           <Alert severity="error" sx={{ mt: 2 }}>
             {error}
           </Alert>
         ) : null}
         
-        {success ? (
+        {success && !prCelebration ? (
           <Alert severity="success" sx={{ mt: 2 }}>
             Activity tracked successfully!
           </Alert>

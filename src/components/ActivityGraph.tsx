@@ -25,14 +25,7 @@ import {
 } from '@mui/material';
 import { Fullscreen, Close } from '@mui/icons-material';
 import { formatActivityValueDisplay } from '../utils/formatActivityValue';
-
-interface ActivityResult {
-  id: string;
-  userName: string;
-  activity: string;
-  value: number;
-  date: string;
-}
+import type { ActivityResult } from '../types/activity';
 
 interface ActivityGraphProps {
   results: ActivityResult[];

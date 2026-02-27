@@ -45,7 +45,7 @@ junit.xml
 
 # Data files (keep examples, ignore actual data)
 data/*.csv
-data/users.yaml
+data/*.yaml
 !data/users.example.yaml
 !data/README.md
 

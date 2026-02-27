@@ -33,7 +33,9 @@ import {
   MenuItem,
   SelectChangeEvent,
   Checkbox,
-  InputAdornment
+  InputAdornment,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import { Delete as DeleteIcon, Edit as EditIcon, ArrowBack as ArrowBackIcon, LocalOffer as TagIcon, Search as SearchIcon } from '@mui/icons-material';
 import { collection, getDocs, doc, updateDoc, deleteDoc, orderBy, query, getDoc, setDoc, where, Timestamp, writeBatch, limit, startAfter, QueryDocumentSnapshot } from 'firebase/firestore';
@@ -43,14 +45,7 @@ import { ACTIVITIES } from './ActivityTracker';
 import { auth } from '../firebase';
 import { formatActivityValueDisplay } from '../utils/formatActivityValue';
 import { ANALYTICS_EVENTS } from '../constants/analytics';
-
-interface Result {
-  id: string;
-  activity: string;
-  value: number;
-  date: string;
-  userName: string;
-}
+import type { ActivityResult } from '../types/activity';
 
 type SortField = 'userName' | 'activity' | 'date' | 'value';
 type SortDirection = 'asc' | 'desc';
@@ -78,9 +73,9 @@ const getFullName = (user: User | null): string => {
 };
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
-  const [results, setResults] = useState<Result[]>([]);
+  const [results, setResults] = useState<ActivityResult[]>([]);
   const [editDialog, setEditDialog] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<Result | null>(null);
+  const [selectedResult, setSelectedResult] = useState<ActivityResult | null>(null);
   const [editValue, setEditValue] = useState('');
   const [editDate, setEditDate] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -90,8 +85,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [addActivityDialog, setAddActivityDialog] = useState(false);
   const [newActivity, setNewActivity] = useState('');
+  const [newActivityHigherIsBetter, setNewActivityHigherIsBetter] = useState(true);
   const [removeActivityDialog, setRemoveActivityDialog] = useState(false);
   const [activities, setActivities] = useState<string[]>(ACTIVITIES);
+  const [activityPrDirection, setActivityPrDirection] = useState<Record<string, boolean>>({});
   const [users, setUsers] = useState<User[]>([]);
   const [selectedTab, setSelectedTab] = useState(0);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User | null>(null);
@@ -109,6 +106,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const [editActivityDialog, setEditActivityDialog] = useState(false);
   const [activityToEdit, setActivityToEdit] = useState<string | null>(null);
   const [editActivityName, setEditActivityName] = useState('');
+  const [editActivityHigherIsBetter, setEditActivityHigherIsBetter] = useState(true);
   const [editTagDialog, setEditTagDialog] = useState(false);
   const [tagToEdit, setTagToEdit] = useState<string | null>(null);
   const [editTagName, setEditTagName] = useState('');
@@ -136,7 +134,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const fetchedResults = querySnapshot.docs.slice(0, 100).map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Result[];
+      })) as ActivityResult[];
       
       // Check if there are more results (we loaded 101, so if we got 101, there are more)
       const hasMore = querySnapshot.docs.length > 100;
@@ -180,7 +178,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const fetchedResults = querySnapshot.docs.slice(0, 100).map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Result[];
+      })) as ActivityResult[];
       
       // Check if there are more results
       const hasMore = querySnapshot.docs.length > 100;
@@ -247,7 +245,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     console.log('Results updated:', results);
   }, [results]);
 
-  const handleEdit = useCallback((result: Result) => {
+  const handleEdit = useCallback((result: ActivityResult) => {
     setSelectedResult(result);
     setEditValue(result.value.toString());
 
@@ -274,7 +272,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       const oldDate = selectedResult.date;
 
       // Prepare update payload
-      const updates: Partial<Result> = {
+      const updates: Partial<ActivityResult> = {
         value: Number(editValue)
       };
 
@@ -385,7 +383,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     try {
       const activitiesRef = doc(db, 'config', 'activities');
       const newActivities = [...activities, newActivity.trim()];
-      await setDoc(activitiesRef, { list: newActivities });
+      const newPrDirection = { ...activityPrDirection, [newActivity.trim()]: newActivityHigherIsBetter };
+      await setDoc(activitiesRef, { list: newActivities, prDirection: newPrDirection });
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'add_activity',
@@ -394,19 +393,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       });
 
       setActivities(newActivities);
+      setActivityPrDirection(newPrDirection);
       setNewActivity('');
+      setNewActivityHigherIsBetter(true);
       setAddActivityDialog(false);
     } catch (error) {
       console.error('Error adding activity:', error);
       setError('Failed to add activity. Please try again.');
     }
-  }, [newActivity, activities]);
+  }, [newActivity, activities, activityPrDirection, newActivityHigherIsBetter]);
 
   const handleDeleteActivity = useCallback(async (activity: string) => {
     try {
       const activitiesRef = doc(db, 'config', 'activities');
       const newActivities = activities.filter(a => a !== activity);
-      await setDoc(activitiesRef, { list: newActivities });
+      const newPrDirection = { ...activityPrDirection };
+      delete newPrDirection[activity];
+      await setDoc(activitiesRef, { list: newActivities, prDirection: newPrDirection });
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'delete_activity',
@@ -415,62 +418,81 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
       });
 
       setActivities(newActivities);
+      setActivityPrDirection(newPrDirection);
       setRemoveActivityDialog(false);
     } catch (error) {
       console.error('Error deleting activity:', error);
       setError('Failed to delete activity. Please try again.');
     }
-  }, [activities]);
+  }, [activities, activityPrDirection]);
 
   const handleEditActivity = useCallback((activity: string) => {
     setActivityToEdit(activity);
     setEditActivityName(activity);
+    setEditActivityHigherIsBetter(activityPrDirection[activity] !== false);
     setEditActivityDialog(true);
-  }, []);
+  }, [activityPrDirection]);
 
   const handleSaveActivity = useCallback(async () => {
     if (!activityToEdit || !editActivityName.trim()) return;
 
     const newName = editActivityName.trim();
-    if (newName === activityToEdit) {
+    const nameChanged = newName !== activityToEdit;
+    const directionChanged = editActivityHigherIsBetter !== (activityPrDirection[activityToEdit] !== false);
+
+    if (!nameChanged && !directionChanged) {
       setEditActivityDialog(false);
       return;
     }
 
     try {
-      // 1. Update activity list in config
+      // 1. Update activity list and prDirection in config
       const activitiesRef = doc(db, 'config', 'activities');
-      const newActivities = activities.map(a => a === activityToEdit ? newName : a);
-      await setDoc(activitiesRef, { list: newActivities });
+      const newActivities = nameChanged
+        ? activities.map(a => a === activityToEdit ? newName : a)
+        : activities;
+      const newPrDirection = { ...activityPrDirection };
+      if (nameChanged) {
+        delete newPrDirection[activityToEdit];
+      }
+      newPrDirection[newName] = editActivityHigherIsBetter;
+      await setDoc(activitiesRef, { list: newActivities, prDirection: newPrDirection });
 
-      // 2. Update all results with this activity name
-      const resultsRef = collection(db, 'results');
-      const q = query(resultsRef, where('activity', '==', activityToEdit));
-      const querySnapshot = await getDocs(q);
+      // 2. Update all results with this activity name (only if name changed)
+      let resultsUpdated = 0;
+      if (nameChanged) {
+        const resultsRef = collection(db, 'results');
+        const q = query(resultsRef, where('activity', '==', activityToEdit));
+        const querySnapshot = await getDocs(q);
 
-      const updatePromises = querySnapshot.docs.map(doc => updateDoc(doc.ref, { activity: newName }));
-      await Promise.all(updatePromises);
+        const updatePromises = querySnapshot.docs.map(doc => updateDoc(doc.ref, { activity: newName }));
+        await Promise.all(updatePromises);
+        resultsUpdated = querySnapshot.size;
+      }
 
       logAnalyticsEvent(ANALYTICS_EVENTS.ADMIN_ACTION, {
         action: 'edit_activity',
         oldName: activityToEdit,
         newName: newName,
-        resultsUpdated: querySnapshot.size
+        resultsUpdated
       });
 
       // Update local state
       setActivities(newActivities);
+      setActivityPrDirection(newPrDirection);
       setEditActivityDialog(false);
       setActivityToEdit(null);
       setEditActivityName('');
 
       // Reload results to reflect changes in the table
-      await loadAllResults();
+      if (nameChanged) {
+        await loadAllResults();
+      }
     } catch (error) {
       console.error('Error updating activity:', error);
       setError('Failed to update activity. Please try again.');
     }
-  }, [activityToEdit, editActivityName, activities, loadAllResults]);
+  }, [activityToEdit, editActivityName, editActivityHigherIsBetter, activities, activityPrDirection, loadAllResults]);
 
   // Load activities from Firebase on component mount
   useEffect(() => {
@@ -480,13 +502,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
         const activitiesDoc = await getDoc(activitiesRef);
         if (activitiesDoc.exists()) {
           const data = activitiesDoc.data();
-          // data is guaranteed to exist when exists() is true
           if ('list' in data && Array.isArray(data.list)) {
             setActivities(data.list as string[]);
           }
+          if ('prDirection' in data && typeof data.prDirection === 'object' && data.prDirection !== null) {
+            setActivityPrDirection(data.prDirection as Record<string, boolean>);
+          }
         } else {
           // Initialize activities in Firebase if they don't exist
-          await setDoc(activitiesRef, { list: ACTIVITIES });
+          await setDoc(activitiesRef, { list: ACTIVITIES, prDirection: {} });
         }
       } catch (err) {
         console.error('Error loading activities:', err);
@@ -1051,7 +1075,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
     };
   }, [handleDeleteResult]);
 
-  const createEditResultHandler = useCallback((result: Result) => {
+  const createEditResultHandler = useCallback((result: ActivityResult) => {
     return () => {
       handleEdit(result);
     };
@@ -1112,6 +1136,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
 
   const handleCloseAddActivityDialog = useCallback(() => {
     setAddActivityDialog(false);
+    setNewActivityHigherIsBetter(true);
   }, []);
 
   const handleNewActivityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1226,6 +1251,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
   const handleSaveUserClick = useCallback(() => {
     void handleSaveUser();
   }, [handleSaveUser]);
+
+  const handleNewActivityHigherIsBetterChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewActivityHigherIsBetter(e.target.checked);
+  }, []);
+
+  const handleEditActivityHigherIsBetterChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditActivityHigherIsBetter(e.target.checked);
+  }, []);
 
   const handleCloseEditActivityDialog = useCallback(() => {
     setEditActivityDialog(false);
@@ -1651,7 +1684,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
           <List>
             {activities.map((activity) => (
               <ListItem key={activity}>
-                <ListItemText primary={activity} />
+                <ListItemText
+                  primary={activity}
+                  secondary={activityPrDirection[activity] === false ? 'PR = Lowest value' : 'PR = Highest value'}
+                />
                 <ListItemSecondaryAction>
                   <IconButton
                     edge="end"
@@ -1782,6 +1818,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             helperText="For compound units, use format: Activity (unit1/unit2)"
             sx={{ mt: 1 }}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={newActivityHigherIsBetter}
+                onChange={handleNewActivityHigherIsBetterChange}
+              />
+            }
+            label={newActivityHigherIsBetter ? 'PR = Highest value' : 'PR = Lowest value'}
+            sx={{ mt: 1 }}
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            Use &quot;highest&quot; for weight/distance/reps. Use &quot;lowest&quot; for timed events.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddActivityDialog}>Cancel</Button>
@@ -1986,6 +2035,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack, onUserDeleted }) => {
             value={editActivityName}
             onChange={handleEditActivityNameChange}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={editActivityHigherIsBetter}
+                onChange={handleEditActivityHigherIsBetterChange}
+              />
+            }
+            label={editActivityHigherIsBetter ? 'PR = Highest value' : 'PR = Lowest value'}
+            sx={{ mt: 1 }}
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            Use &quot;highest&quot; for weight/distance/reps. Use &quot;lowest&quot; for timed events.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseEditActivityDialog}>Cancel</Button>

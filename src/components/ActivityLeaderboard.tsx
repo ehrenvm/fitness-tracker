@@ -23,18 +23,11 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../firebase';
 import { ACTIVITIES } from './ActivityTracker';
 import { formatActivityValueDisplay } from '../utils/formatActivityValue';
+import type { ActivityResult } from '../types/activity';
 
 type ViewMode = 'all' | 'max' | 'min';
 type Order = 'asc' | 'desc';
 type SortableColumn = 'userName' | 'value' | 'date';
-
-interface Result {
-  id: string;
-  userName: string;
-  activity: string;
-  value: number;
-  date: string;
-}
 
 interface ProcessedResult {
   userName: string;
@@ -66,7 +59,7 @@ function getComparator(
 
 const ActivityLeaderboard: React.FC = () => {
   const [selectedActivity, setSelectedActivity] = useState<string>('');
-  const [results, setResults] = useState<Result[]>([]);
+  const [results, setResults] = useState<ActivityResult[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [order, setOrder] = useState<Order>('desc');
   const [orderBy, setOrderBy] = useState<SortableColumn>('value');
@@ -103,7 +96,7 @@ const ActivityLeaderboard: React.FC = () => {
       const fetchedResults = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as Result[];
+      })) as ActivityResult[];
       setResults(fetchedResults);
     } catch (error) {
       console.error('Error loading results:', error);
@@ -124,7 +117,7 @@ const ActivityLeaderboard: React.FC = () => {
     setOrderBy(property);
   }, [orderBy]);
 
-  const processResults = (results: Result[]): ProcessedResult[] => {
+  const processResults = (results: ActivityResult[]): ProcessedResult[] => {
     if (!selectedActivity) return [];
 
     const activityResults = results.filter(r => r.activity === selectedActivity);
@@ -137,7 +130,7 @@ const ActivityLeaderboard: React.FC = () => {
       }));
     }
 
-    const userGroups = activityResults.reduce<{ [key: string]: Result[] }>((groups, result) => {
+    const userGroups = activityResults.reduce<{ [key: string]: ActivityResult[] }>((groups, result) => {
       // Initialize array if it doesn't exist
       if (!(result.userName in groups)) {
         groups[result.userName] = [];
@@ -147,7 +140,7 @@ const ActivityLeaderboard: React.FC = () => {
     }, {});
 
     return Object.entries(userGroups).map(([, userResults]) => {
-      let selectedResult: Result;
+      let selectedResult: ActivityResult;
       
       switch (viewMode) {
         case 'max':
