@@ -34,7 +34,8 @@
     "migrate:name-to-firstname-lastname": "node scripts/migrate-to-firstname-lastname.js",
     "migrate:tags-to-collection": "node scripts/migrate-tags-to-collection.js",
     "upload:users": "node scripts/upload-users.js",
-    "convert:csv-to-yaml": "node scripts/csv-to-yaml.js"
+    "convert:csv-to-yaml": "node scripts/csv-to-yaml.js",
+    "backfill:leaderboards": "node scripts/backfill-leaderboards.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

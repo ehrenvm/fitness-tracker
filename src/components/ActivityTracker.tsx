@@ -5,6 +5,7 @@ import {
   Box,
   Typography,
   Container,
+  Link,
   Select,
   MenuItem,
   FormControl,
@@ -54,6 +55,8 @@ export const ACTIVITIES = [
 
 interface ActivityTrackerProps {
   userNames: string[];
+  onResultAdded?: () => void;
+  onReturnToLeaderboard?: () => void;
 }
 
 type SortField = 'date' | 'value';
@@ -83,7 +86,7 @@ const getTodayString = (): string => {
   return `${year}-${month}-${day}`;
 };
 
-const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
+const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames, onResultAdded, onReturnToLeaderboard }) => {
   const [user] = useAuthState(auth);
   const [selectedActivity, setSelectedActivity] = useState('');
   const [value, setValue] = useState<ActivityValue>({ value1: '', value2: '' });
@@ -341,12 +344,13 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
       setValue({ value1: '', value2: '' });
       setEntryDate(getTodayString());
       void loadResults();
+      onResultAdded?.();
     } catch (error) {
       console.error('Error adding result:', error);
       setError('Failed to add result. Please try again.');
       setTimeout(() => setError(null), 3000);
     }
-  }, [user, selectedActivity, value, entryDate, userNames, results, loadResults, activityPrDirection]);
+  }, [user, selectedActivity, value, entryDate, userNames, results, loadResults, activityPrDirection, onResultAdded]);
 
   const handleCheckActivity = useCallback(() => {
     let filtered = [...results];
@@ -578,9 +582,22 @@ const ActivityTracker: React.FC<ActivityTrackerProps> = ({ userNames }) => {
   return (
     <Container maxWidth="lg" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
       <Box sx={{ mt: { xs: 2, md: 4 } }}>
-        <Typography variant="h4" component="h1" gutterBottom sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}>
-          Activity Tracker
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+          <Typography variant="h4" component="h1" sx={{ fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2.125rem' } }}>
+            Activity Tracker
+          </Typography>
+          {onReturnToLeaderboard ? (
+            <Link
+              component="button"
+              variant="body2"
+              type="button"
+              onClick={onReturnToLeaderboard}
+              sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+            >
+              Return to Leaderboard
+            </Link>
+          ) : null}
+        </Box>
         
         <Typography variant="h6" gutterBottom sx={{ fontSize: { xs: '0.95rem', sm: '1.1rem', md: '1.25rem' } }}>
           {userNames.length === 1 ? (

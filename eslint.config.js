@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'build', 'coverage', 'node_modules', 'functions/**', '*.config.{js,ts}', 'scripts/**', '**/*.test.{ts,tsx}', '**/setupTests.ts'] },
+  { ignores: ['dist', 'build', 'coverage', 'node_modules', 'functions/**', '*.config.{js,ts}', 'scripts/**', '**/*.test.{ts,tsx}', '**/setupTests.ts', 'src/utils/leaderboardCompute.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

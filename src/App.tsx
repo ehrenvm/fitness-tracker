@@ -8,6 +8,7 @@ import { UserProvider } from './contexts/UserContextProvider';
 import UserList from './components/UserList';
 import AdminPanel from './components/AdminPanel';
 import ActivityTracker from './components/ActivityTracker';
+import OverallLeaderboard from './components/OverallLeaderboard';
 import AppHeader from './components/AppHeader';
 import Login from './components/Login';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -40,12 +41,21 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const [leaderboardRefreshTrigger, setLeaderboardRefreshTrigger] = useState<number>(0);
   const [highlight, setHighlight] = useState(false);
   const [mobileUserListOpen, setMobileUserListOpen] = useState(true);
   const highlightTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const handleResultAdded = useCallback(() => {
+    setLeaderboardRefreshTrigger((t) => t + 1);
+  }, []);
+
+  const handleReturnToLeaderboard = useCallback(() => {
+    setSelectedUsers([]);
+  }, []);
 
   const handleUserSelect = useCallback((userNames: string[]): void => {
     setSelectedUsers(userNames);
@@ -182,7 +192,7 @@ const App: React.FC = () => {
                               )}
                             </Box>
 
-                            {/* Activity Tracker Panel */}
+                            {/* Activity Tracker / Leaderboard Panel */}
                             <Box
                               sx={{
                                 width: { xs: '100%', md: '75%' },
@@ -192,20 +202,17 @@ const App: React.FC = () => {
                                 flexDirection: 'column',
                                 minHeight: { xs: 'auto', md: `calc(100vh - ${HEADER_AND_PADDING}px)` },
                                 justifyContent: 'flex-start',
-                                ...(selectedUsers.length === 0 && !isMobile && { paddingTop: '10%' }),
                               }}
                               className={highlight ? 'highlight-activity-tracker' : ''}
                             >
                               {selectedUsers.length > 0 ? (
-                                <ActivityTracker userNames={selectedUsers} />
+                                <ActivityTracker
+                                  userNames={selectedUsers}
+                                  onResultAdded={handleResultAdded}
+                                  onReturnToLeaderboard={handleReturnToLeaderboard}
+                                />
                               ) : (
-                                <Box sx={{
-                                  display: 'flex',
-                                  justifyContent: 'center',
-                                  alignItems: 'center',
-                                  p: 3,
-                                  mt: { xs: 2, md: 0 },
-                                }}>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: { xs: 2, md: 0 }, pt: { md: 1 } }}>
                                   <Typography
                                     variant={isMobile ? 'body1' : 'h6'}
                                     color="textSecondary"
@@ -214,6 +221,7 @@ const App: React.FC = () => {
                                   >
                                     Select a user to view their activities or add a result.
                                   </Typography>
+                                  <OverallLeaderboard refreshTrigger={leaderboardRefreshTrigger} />
                                 </Box>
                               )}
                             </Box>
